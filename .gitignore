@@ -1,11 +1,5 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# api data
-/artic-api-data
-
-# orphan reports
-/orphans
-
 # dependencies
 /node_modules
 
