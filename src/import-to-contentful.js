@@ -7,7 +7,7 @@ const path = require("path");
 
 // Load environment variables from .env file
 function loadEnvFile() {
-  const envPath = path.join(__dirname, ".env");
+  const envPath = path.join(__dirname, "..", ".env");
 
   if (!fs.existsSync(envPath)) {
     console.error(`
@@ -49,16 +49,16 @@ function importToContentful() {
   console.log("📦 Starting Contentful import process...\n");
 
   // Check if import.json exists
-  const importFilePath = path.join(__dirname, "import.json");
+  const importFilePath = path.join(__dirname, "..", "import.json");
   if (!fs.existsSync(importFilePath)) {
     console.error(`
 ❌ Error: import.json not found
 
 Please generate the import file first by running:
-  node generate-import-file.js --url <markdown-url>
+  node src/generate-import-file.js --url <markdown-url>
 
 Or with validation:
-  node generate-import-file.js --url <markdown-url> --validate
+  node src/generate-import-file.js --url <markdown-url> --validate
 `);
     process.exit(1);
   }

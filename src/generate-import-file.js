@@ -24,7 +24,7 @@ if (HELP_MODE) {
 📝 Contentful Markdown Import Generator
 ========================================
 
-Usage: node generate-import-file.js --url <markdown-url> [options]
+Usage: node src/generate-import-file.js --url <markdown-url> [options]
 
 Required:
   --url <url>   URL of the markdown file to import
@@ -45,13 +45,13 @@ Options:
 
 Examples:
   # Generate import from GitHub URL
-  node generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
+  node src/generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
 
   # Generate import from Contentful asset URL
-  node generate-import-file.js --url https://assets.ctfassets.net/space/asset/file.md
+  node src/generate-import-file.js --url https://assets.ctfassets.net/space/asset/file.md
 
   # Validate before generating
-  node generate-import-file.js --url <url> --validate
+  node src/generate-import-file.js --url <url> --validate
 
 Features:
   ✓ Fetches markdown from any public URL
@@ -70,13 +70,13 @@ if (!MARKDOWN_URL) {
   console.error(`
 ❌ Error: Missing required --url parameter
 
-Usage: node generate-import-file.js --url <markdown-url> [options]
+Usage: node src/generate-import-file.js --url <markdown-url> [options]
 
 Example:
-  node generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
+  node src/generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
 
 For more information, run:
-  node generate-import-file.js --help
+  node src/generate-import-file.js --help
 `);
   process.exit(1);
 }
