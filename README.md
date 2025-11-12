@@ -20,7 +20,7 @@ A Node.js tool that fetches markdown from any public URL, validates its structur
 npm install
 
 # 2. Setup .env file (first time only)
-cp env.example .env
+cp .env.example .env
 # Edit .env with your Contentful CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID
 
 # 3. Generate import file
@@ -672,14 +672,16 @@ After fixing the issues in your markdown source, run the command again.
 **Problem:** `.env file not found` when running `npm run import`
 
 **Solution:** Create a `.env` file with your Contentful credentials:
+
 ```bash
-cp env.example .env
+cp .env.example .env
 # Edit .env with your CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID
 ```
 
 **Problem:** `import.json not found`
 
 **Solution:** Generate the import file first:
+
 ```bash
 node src/generate-import-file.js --url <markdown-url> --validate
 ```
@@ -687,11 +689,13 @@ node src/generate-import-file.js --url <markdown-url> --validate
 **Problem:** `Contentful CLI not found`
 
 **Solution:** Install the Contentful CLI globally:
+
 ```bash
 npm install -g contentful-cli
 ```
 
 Or use npx to run without installing:
+
 ```bash
 npx contentful-cli space import --space-id <CONTENTFUL_SPACE_ID> --environment-id <CONTENTFUL_ENVIRONMENT_ID> --content-file import.json
 ```
@@ -699,6 +703,7 @@ npx contentful-cli space import --space-id <CONTENTFUL_SPACE_ID> --environment-i
 **Problem:** `CONTENTFUL_SPACE_ID not found in .env file`
 
 **Solution:** Make sure your `.env` file contains:
+
 ```bash
 CONTENTFUL_SPACE_ID=your-actual-space-id
 CONTENTFUL_ENVIRONMENT_ID=master
@@ -715,7 +720,7 @@ Here's a complete workflow from start to finish:
 npm install
 
 # 2. Setup environment variables (first time only)
-cp env.example .env
+cp .env.example .env
 # Edit .env with your CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID
 
 # 3. Generate the import file (choose one)
@@ -828,7 +833,7 @@ node src/generate-import-file.js \
 
 ```bash
 # Copy the example file
-cp env.example .env
+cp .env.example .env
 ```
 
 2. **Edit `.env` with your Contentful credentials:**
@@ -855,6 +860,7 @@ npm run import
 ```
 
 **The script will:**
+
 - ✅ Read credentials from `.env` file
 - ✅ Validate that `import.json` exists
 - ✅ Check that Contentful CLI is installed
@@ -862,6 +868,7 @@ npm run import
 - ✅ Show real-time progress
 
 **Example output:**
+
 ```
 📦 Starting Contentful import process...
 
@@ -907,6 +914,7 @@ Make sure you have:
    ```
 
 3. **Environment variables configured** (for `npm run import`)
+
    - Create `.env` file with `CONTENTFUL_SPACE_ID` and `CONTENTFUL_ENVIRONMENT_ID`
 
 4. **Required content type**
