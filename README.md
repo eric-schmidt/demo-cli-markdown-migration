@@ -10,18 +10,23 @@ A Node.js tool that fetches markdown from any public URL, validates its structur
 - ✅ Detailed validation reports with metrics and quality checks
 - ✅ Export validation errors to CSV with line numbers for easy fixing
 - ✅ Generate Contentful CLI import format
+- ✅ Automated import to Contentful using environment variables
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
 
-# Generate import from a markdown URL
-node generate-import.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
+# 2. Setup .env file (first time only)
+cp env.example .env
+# Edit .env with your Contentful CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID
 
-# Validate and generate (recommended)
-node generate-import.js --url <markdown-url> --validate
+# 3. Generate import from a markdown URL
+node generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/doc.md --validate
+
+# 4. Import to Contentful
+npm run import
 ```
 
 ## Requirements
@@ -53,7 +58,7 @@ node generate-import.js --url <markdown-url> --validate
 ### Basic Command
 
 ```bash
-node generate-import.js --url <markdown-url> [options]
+node generate-import-file.js --url <markdown-url> [options]
 ```
 
 ### Options
@@ -69,16 +74,16 @@ node generate-import.js --url <markdown-url> [options]
 
 ```bash
 # GitHub raw URL
-node generate-import.js --url https://raw.githubusercontent.com/user/repo/main/README.md
+node generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/README.md
 
 # Contentful asset URL
-node generate-import.js --url https://assets.ctfassets.net/space/asset/file.md
+node generate-import-file.js --url https://assets.ctfassets.net/space/asset/file.md
 
 # With validation (recommended)
-node generate-import.js --url <url> --validate
+node generate-import-file.js --url <url> --validate
 
 # Validate and export errors to CSV
-node generate-import.js --url <url> --validate --export-errors
+node generate-import-file.js --url <url> --validate --export-errors
 ```
 
 ---
@@ -90,7 +95,7 @@ node generate-import.js --url <url> --validate --export-errors
 Generate the `import.json` file without validation:
 
 ```bash
-node generate-import.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
+node generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
 ```
 
 **Output:**
@@ -109,7 +114,7 @@ Successfully fetched 9,845 characters
 Validate markdown quality and only generate if validation passes:
 
 ```bash
-node generate-import.js --url <markdown-url> --validate
+node generate-import-file.js --url <markdown-url> --validate
 ```
 
 **Output Example (Success):**
@@ -165,7 +170,7 @@ node generate-import.js --url <markdown-url> --validate
 For easier tracking and fixing of validation errors, export detailed error information to a CSV file:
 
 ```bash
-node generate-import.js --url <markdown-url> --validate --export-errors
+node generate-import-file.js --url <markdown-url> --validate --export-errors
 ```
 
 **Output:**
@@ -196,7 +201,7 @@ node generate-import.js --url <markdown-url> --validate --export-errors
 Display usage instructions:
 
 ```bash
-node generate-import.js --help
+node generate-import-file.js --help
 ```
 
 ---
@@ -315,7 +320,7 @@ Test the validator with the intentionally broken file:
 
 ```bash
 # This will FAIL validation (expected behavior)
-node generate-import.js \
+node generate-import-file.js \
   --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/main/markdown.md \
   --validate
 ```
@@ -364,18 +369,20 @@ The validation will exit with an error and will NOT generate `import.json` until
 
 ## NPM Scripts
 
-The `package.json` includes example shortcuts using a demo markdown file:
+The `package.json` includes convenient shortcuts:
 
 ```bash
-npm run help             # Show help message
-npm run example          # Generate from GitHub demo file
-npm run example:validate # Validate and generate from GitHub demo file
+npm run help                  # Show help message
+npm run example               # Generate from GitHub demo file
+npm run example:validate      # Validate and generate from GitHub demo file
+npm run example:export-errors # Validate, export errors, and generate
+npm run import                # Import generated file to Contentful
 ```
 
-**Note:** These examples use a demo URL. For your own files, use the full command:
+**Note:** Example scripts use a demo URL. For your own files, use the full command:
 
 ```bash
-node generate-import.js --url <your-markdown-url> [options]
+node generate-import-file.js --url <your-markdown-url> [options]
 ```
 
 ---
@@ -458,18 +465,18 @@ Simply provide different URLs via the `--url` parameter:
 
 ```bash
 # GitHub repository
-node generate-import.js --url https://raw.githubusercontent.com/org/repo/main/docs/file.md
+node generate-import-file.js --url https://raw.githubusercontent.com/org/repo/main/docs/file.md
 
 # Contentful asset
-node generate-import.js --url https://assets.ctfassets.net/space-id/asset-id/file.md
+node generate-import-file.js --url https://assets.ctfassets.net/space-id/asset-id/file.md
 
 # Other hosting
-node generate-import.js --url https://example.com/docs/markdown.md
+node generate-import-file.js --url https://example.com/docs/markdown.md
 ```
 
 ### Adjust Validation Rules
 
-Modify the `validateMarkdown()` function in `generate-import.js` to add custom checks:
+Modify the `validateMarkdown()` function in `generate-import-file.js` to add custom checks:
 
 ```javascript
 // Example: Check for minimum word count
@@ -502,17 +509,17 @@ const PUBLISH = false; // Don't publish on import
 **Solution:** Provide the URL parameter:
 
 ```bash
-node generate-import.js --url https://your-markdown-url.com/file.md
+node generate-import-file.js --url https://your-markdown-url.com/file.md
 ```
 
 Example of wrong vs. correct:
 
 ```bash
 # ❌ Wrong
-node generate-import.js
+node generate-import-file.js
 
 # ✅ Correct
-node generate-import.js --url https://example.com/file.md
+node generate-import-file.js --url https://example.com/file.md
 ```
 
 ### Module not found: marked
@@ -572,6 +579,43 @@ After fixing the issues in your markdown source, run the command again.
 - Update Node.js to version 18 or later
 - Alternatively, modify the script to use the `https` module for older Node.js versions
 
+### Import script errors
+
+**Problem:** `.env file not found` when running `npm run import`
+
+**Solution:** Create a `.env` file with your Contentful credentials:
+```bash
+cp env.example .env
+# Edit .env with your CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID
+```
+
+**Problem:** `import.json not found`
+
+**Solution:** Generate the import file first:
+```bash
+node generate-import-file.js --url <markdown-url> --validate
+```
+
+**Problem:** `Contentful CLI not found`
+
+**Solution:** Install the Contentful CLI globally:
+```bash
+npm install -g contentful-cli
+```
+
+Or use npx to run without installing:
+```bash
+npx contentful-cli space import --space-id <CONTENTFUL_SPACE_ID> --environment-id <CONTENTFUL_ENVIRONMENT_ID> --content-file import.json
+```
+
+**Problem:** `CONTENTFUL_SPACE_ID not found in .env file`
+
+**Solution:** Make sure your `.env` file contains:
+```bash
+CONTENTFUL_SPACE_ID=your-actual-space-id
+CONTENTFUL_ENVIRONMENT_ID=master
+```
+
 ---
 
 ## Complete Workflow Example
@@ -582,23 +626,38 @@ Here's a complete workflow from start to finish:
 # 1. Install dependencies
 npm install
 
-# 2. Generate the import file with validation (recommended)
-node generate-import.js --url https://raw.githubusercontent.com/user/repo/main/doc.md --validate
+# 2. Setup environment variables (first time only)
+cp env.example .env
+# Edit .env with your CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID
 
-# 3. Import to Contentful
-contentful space import --content-file import.json
+# 3. Generate the import file with validation (recommended)
+node generate-import-file.js --url https://raw.githubusercontent.com/user/repo/main/doc.md --validate
+
+# 4. Import to Contentful
+npm run import
 ```
 
-### Multi-step example with different URLs
+### Alternative: Manual Import
+
+If you prefer to use the Contentful CLI directly:
 
 ```bash
-# Validate and generate import file from GitHub
-node generate-import.js \
+# 1. Install Contentful CLI (if not already installed)
+npm install -g contentful-cli
+
+# 2. Login to Contentful
+contentful login
+
+# 3. Generate import file
+node generate-import-file.js \
   --url https://raw.githubusercontent.com/org/repo/main/docs/guide.md \
   --validate
 
-# Import to Contentful
-contentful space import --content-file import.json
+# 4. Import manually
+contentful space import \
+  --space-id <your-space-id> \
+  --environment-id master \
+  --content-file import.json
 ```
 
 ---
@@ -611,7 +670,7 @@ This repository includes a test markdown file with intentional validation errors
 
 ```bash
 # Test with the broken markdown (will fail validation)
-node generate-import.js \
+node generate-import-file.js \
   --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/main/markdown-broken.md \
   --validate
 ```
@@ -624,7 +683,7 @@ Export validation errors to CSV for easier tracking:
 
 ```bash
 # Validate and export errors to CSV
-node generate-import.js \
+node generate-import-file.js \
   --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/main/markdown-broken.md \
   --validate --export-errors
 ```
@@ -642,7 +701,7 @@ node generate-import.js \
 ### Example 2: GitHub Documentation
 
 ```bash
-node generate-import.js \
+node generate-import-file.js \
   --url https://raw.githubusercontent.com/contentful/contentful.js/master/README.md \
   --validate
 ```
@@ -650,7 +709,7 @@ node generate-import.js \
 ### Example 3: Contentful Asset
 
 ```bash
-node generate-import.js \
+node generate-import-file.js \
   --url https://assets.ctfassets.net/your-space/your-asset/document.md \
   --validate
 ```
@@ -658,19 +717,81 @@ node generate-import.js \
 ### Example 4: Remote Documentation
 
 ```bash
-node generate-import.js \
+node generate-import-file.js \
   --url https://docs.example.com/api/v1/markdown/guide.md \
   --validate
 ```
 
 ---
 
-## Output
+## Importing to Contentful
 
-The tool generates `import.json` which can be imported to Contentful using the CLI:
+### Setup Environment Variables
+
+1. **Create a `.env` file** in the project root:
 
 ```bash
-contentful space import --content-file import.json
+# Copy the example file
+cp env.example .env
+```
+
+2. **Edit `.env` with your Contentful credentials:**
+
+```bash
+CONTENTFUL_SPACE_ID=your-contentful-space-id
+CONTENTFUL_ENVIRONMENT_ID=master
+```
+
+You can find your Space ID in the Contentful web app under Settings → General Settings.
+
+### Import Methods
+
+#### Method 1: Using the NPM Script (Recommended)
+
+The easiest way to import is using the built-in script:
+
+```bash
+# 1. Generate the import file
+node generate-import-file.js --url <markdown-url> --validate
+
+# 2. Import to Contentful
+npm run import
+```
+
+**The script will:**
+- ✅ Read credentials from `.env` file
+- ✅ Validate that `import.json` exists
+- ✅ Check that Contentful CLI is installed
+- ✅ Run the import command with proper parameters
+- ✅ Show real-time progress
+
+**Example output:**
+```
+📦 Starting Contentful import process...
+
+🔧 Configuration:
+   Space ID: gvk1uqblk4uq
+   Environment: master
+   Import File: import.json
+
+🚀 Running command:
+   contentful space import --space-id gvk1uqblk4uq --environment-id master --content-file import.json
+
+────────────────────────────────────────────────────────────
+
+[Contentful CLI output here]
+
+────────────────────────────────────────────────────────────
+
+✅ Import completed successfully!
+```
+
+#### Method 2: Using Contentful CLI Directly
+
+You can also import directly using the Contentful CLI:
+
+```bash
+contentful space import --space-id <CONTENTFUL_SPACE_ID> --environment-id <CONTENTFUL_ENVIRONMENT_ID> --content-file import.json
 ```
 
 ### Prerequisites for Import
@@ -689,7 +810,10 @@ Make sure you have:
    contentful login
    ```
 
-3. **Required content type**
+3. **Environment variables configured** (for `npm run import`)
+   - Create `.env` file with `CONTENTFUL_SPACE_ID` and `CONTENTFUL_ENVIRONMENT_ID`
+
+4. **Required content type**
    - A `post` content type with:
      - `internalTitle` field (Short text)
      - `markdown` field (Long text)

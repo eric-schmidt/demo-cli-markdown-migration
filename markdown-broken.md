@@ -47,7 +47,7 @@ Here's an image with **no alt text** (warning):
 
 Here's a [broken link with no URL]() - this is a critical error!
 
-Another [broken link]( ) with just spaces - also critical!
+Another [broken link]() with just spaces - also critical!
 
 Try clicking on [this link](https://www.contentful.com/) - it works fine.
 
@@ -197,7 +197,7 @@ But this link [has no destination]() and will cause a validation error!
 Here are more validation issues:
 
 - [Empty link #1]()
-- [Empty link #2]( )
+- [Empty link #2]()
 - ![Empty image URL]()
 - ![](https://example.com/image.png) - Image with no alt text
 
@@ -232,17 +232,20 @@ You can also use automatic links: <https://www.example.com> or contact us at <co
 This document intentionally includes:
 
 ### Critical Errors (Will Fail Validation):
+
 1. ❌ Multiple H1 headings (line 2 and line 18)
 2. ❌ Images with empty URLs (multiple instances)
 3. ❌ Links with empty URLs (multiple instances)
 
 ### Warnings (Will Not Fail Validation):
+
 1. ⚠️ Images missing alt text
 2. ⚠️ External images (should be hosted in Contentful)
 
 Try running:
+
 ```bash
-node generate-import.js --url <this-file-url> --validate
+node generate-import-file.js --url <this-file-url> --validate
 ```
 
 You should see validation errors!
@@ -252,4 +255,3 @@ You should see validation errors!
 ## Conclusion
 
 This markdown document demonstrates various validation errors that can be caught by the markdown validation tool. It's useful for testing and demonstration purposes.
-
