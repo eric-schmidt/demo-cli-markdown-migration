@@ -1,0 +1,23 @@
+{
+  "name": "demo-cli-markdown-migration",
+  "version": "0.1.0",
+  "description": "Generate a well-formatted JSON file from Markdown that can then be used import into Contentful using the Contentful CLI.",
+  "main": "generate-import.js",
+  "scripts": {
+    "help": "node generate-import.js --help",
+    "example": "node generate-import.js --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/refs/heads/main/markdown.md",
+    "example:validate": "node generate-import.js --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/refs/heads/main/markdown-broken.md --validate",
+    "example:export-errors": "node generate-import.js --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/refs/heads/main/markdown-broken.md --validate --export-errors"
+  },
+  "keywords": [
+    "contentful",
+    "markdown",
+    "migration",
+    "import"
+  ],
+  "author": "Eric Schmidt",
+  "license": "MIT",
+  "dependencies": {
+    "marked": "^11.0.0"
+  }
+}
