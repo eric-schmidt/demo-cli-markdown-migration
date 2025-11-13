@@ -1,6 +1,6 @@
 # Contentful Markdown Import Tool
 
-A Node.js tool that fetches markdown from any public URL, validates its structure, and generates a Contentful-compatible import file.
+A Node.js tool that fetches markdown from any public URL, validates its structure, and generates a Contentful-compatible import file. `example-space-export.json` is included so that you can automatically set up a compatible Contentful Space with the necessary content type + fields in order to test the import.
 
 ## Features
 
