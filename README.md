@@ -26,9 +26,9 @@ cp .env.example .env
 # 3. Generate import file
 npm run generate        # Quick generation (no validation)
 # OR
-npm run validate        # Generate with validation & error export
+npm run validate        # Run a validation & error export
 
-# 4. Import to Contentful
+# 4. Import to Contentful using the Space configured in .env file
 npm run import
 ```
 
