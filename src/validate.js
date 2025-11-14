@@ -1,8 +1,8 @@
 /**
  * Validate Markdown from URL
- * 
+ *
  * Usage: node src/validate.js <markdown-url>
- * 
+ *
  * Validates markdown structure and exports issues to a CSV file with line numbers.
  * Checks for: broken links, broken images, missing alt text, multiple H1s, etc.
  */
@@ -42,7 +42,7 @@ function findLineNumber(markdown, searchText) {
  */
 function validateMarkdown(md, internalTitle) {
   const issues = [];
-  
+
   console.log("\n" + "=".repeat(60));
   console.log("📋 MARKDOWN VALIDATION REPORT");
   console.log("=".repeat(60) + "\n");
@@ -206,7 +206,14 @@ function exportToCSV(issues, filename = "validation-errors.csv") {
   }
 
   // CSV header
-  const headers = ["Type", "Category", "Line", "Element", "Description", "Additional Info"];
+  const headers = [
+    "Type",
+    "Category",
+    "Line",
+    "Element",
+    "Description",
+    "Additional Info",
+  ];
 
   // Escape CSV values
   const escapeCSV = (value) => {
@@ -236,10 +243,10 @@ function exportToCSV(issues, filename = "validation-errors.csv") {
 
   console.log(`📄 Issues exported to: ${filename}`);
   console.log(`   Total issues: ${issues.length}`);
-  
+
   // Summary by type
-  const critical = issues.filter(i => i.type === "Critical").length;
-  const warnings = issues.filter(i => i.type === "Warning").length;
+  const critical = issues.filter((i) => i.type === "Critical").length;
+  const warnings = issues.filter((i) => i.type === "Warning").length;
   console.log(`   Critical: ${critical}`);
   console.log(`   Warnings: ${warnings}\n`);
 }
@@ -277,4 +284,3 @@ async function main() {
 }
 
 main();
-
