@@ -49,16 +49,16 @@ function importToContentful() {
   console.log("📦 Starting Contentful import process...\n");
 
   // Check if import.json exists
-  const importFilePath = path.join(__dirname, "..", "import.json");
+  const importFilePath = path.join(__dirname, "..", "outputs", "import.json");
   if (!fs.existsSync(importFilePath)) {
     console.error(`
-❌ Error: import.json not found
+❌ Error: outputs/import.json not found
 
 Please generate the import file first by running:
-  node src/generate-import-file.js --url <markdown-url>
+  npm run generate
 
-Or with validation:
-  node src/generate-import-file.js --url <markdown-url> --validate
+Or:
+  node src/generate.js --url <markdown-url>
 `);
     process.exit(1);
   }
@@ -81,7 +81,7 @@ Or with validation:
   console.log(`🔧 Configuration:`);
   console.log(`   Space ID: ${CONTENTFUL_SPACE_ID}`);
   console.log(`   Environment: ${CONTENTFUL_ENVIRONMENT_ID}`);
-  console.log(`   Import File: import.json\n`);
+  console.log(`   Import File: outputs/import.json\n`);
 
   // Check if contentful-cli is installed
   try {
@@ -94,13 +94,13 @@ Please install the Contentful CLI globally:
   npm install -g contentful-cli
 
 Or use npx to run it without installing:
-  npx contentful-cli space import --space-id ${CONTENTFUL_SPACE_ID} --environment-id ${CONTENTFUL_ENVIRONMENT_ID} --content-file import.json
+  npx contentful-cli space import --space-id ${CONTENTFUL_SPACE_ID} --environment-id ${CONTENTFUL_ENVIRONMENT_ID} --content-file outputs/import.json
 `);
     process.exit(1);
   }
 
   // Build the contentful CLI command
-  const command = `contentful space import --space-id ${CONTENTFUL_SPACE_ID} --environment-id ${CONTENTFUL_ENVIRONMENT_ID} --content-file import.json`;
+  const command = `contentful space import --space-id ${CONTENTFUL_SPACE_ID} --environment-id ${CONTENTFUL_ENVIRONMENT_ID} --content-file outputs/import.json`;
 
   console.log(`🚀 Running command:`);
   console.log(`   ${command}\n`);

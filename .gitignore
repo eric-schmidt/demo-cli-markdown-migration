@@ -16,6 +16,10 @@ yarn-error.log*
 # local env files
 .env
 
-# generated files
-import.json
-validation-errors.csv
+# generated files in outputs directory
+outputs/import.json
+outputs/validation-errors.csv
+
+# legacy generated files (if any remain in root)
+/import.json
+/validation-errors.csv
