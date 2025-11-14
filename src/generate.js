@@ -29,27 +29,38 @@ if (urlIndex !== -1 && args[urlIndex + 1]) {
   MARKDOWN_URL = args[urlIndex + 1];
 }
 
+// Parse content type parameter
+const contentTypeIndex = args.indexOf("--content-type");
+let CONTENT_TYPE = null;
+
+if (contentTypeIndex !== -1 && args[contentTypeIndex + 1]) {
+  CONTENT_TYPE = args[contentTypeIndex + 1];
+}
+
 // Show help if requested
 if (HELP_MODE) {
   console.log(`
 📝 Contentful Markdown Import Generator
 ========================================
 
-Usage: node src/generate.js [--url <markdown-url>]
+Usage: node src/generate.js [--url <markdown-url>] [--content-type <type-id>]
 
 Options:
-  --url <url>   URL of the markdown file to import
-                Can be a GitHub raw URL, Contentful asset URL, or any publicly
-                accessible markdown file URL
-                If not provided, will prompt interactively
+  --url <url>           URL of the markdown file to import
+                        Can be a GitHub raw URL, Contentful asset URL, or any publicly
+                        accessible markdown file URL
+                        If not provided, will prompt interactively
 
-  --help, -h    Show this help message
+  --content-type <id>   Content type ID to import into (e.g., 'post', 'article')
+                        If not provided, will prompt interactively
+
+  --help, -h            Show this help message
 
 Examples:
-  # Generate import from GitHub URL
-  node src/generate.js --url https://raw.githubusercontent.com/user/repo/main/doc.md
+  # Generate import from GitHub URL with specific content type
+  node src/generate.js --url https://raw.githubusercontent.com/user/repo/main/doc.md --content-type article
 
-  # Generate import with interactive prompt
+  # Generate import with interactive prompts
   node src/generate.js
 
   # Or use the npm script
@@ -71,7 +82,7 @@ Tip: Use 'npm run validate' to check markdown quality before importing.
 /**
  * Generate import.json from markdown URL
  */
-async function generateImport(markdownUrl) {
+async function generateImport(markdownUrl, contentType) {
   // 1) Fetch markdown from URL
   console.log(`\n📥 Fetching markdown from: ${markdownUrl}`);
   const response = await fetch(markdownUrl);
@@ -97,7 +108,7 @@ async function generateImport(markdownUrl) {
   const entrySys = {
     type: "Entry",
     contentType: {
-      sys: { type: "Link", linkType: "ContentType", id: "post" },
+      sys: { type: "Link", linkType: "ContentType", id: contentType },
     },
   };
 
@@ -130,31 +141,48 @@ async function generateImport(markdownUrl) {
 
   console.log("✅ import.json successfully generated!");
   console.log(`   Location: outputs/import.json`);
+  console.log(`   Content Type: "${contentType}"`);
   console.log(`   Title: "${internalTitle}"`);
   console.log(`   Publish on import: ${PUBLISH}`);
-  console.log(`\n💡 Next step: Run 'npm run import' to import to Contentful.\n`);
+  console.log(
+    `\n💡 Next step: Run 'npm run import' to import to Contentful.\n`
+  );
 }
 
 // Main execution
 async function main() {
   try {
-    // If URL not provided via CLI, prompt for it
-    if (!MARKDOWN_URL) {
+    // If URL or content type not provided via CLI, prompt for them
+    if (!MARKDOWN_URL || !CONTENT_TYPE) {
       console.log("\n📦 Generate Contentful Import File");
       console.log("─".repeat(60) + "\n");
 
-      MARKDOWN_URL = await question("📎 Enter the markdown URL: ");
+      if (!MARKDOWN_URL) {
+        MARKDOWN_URL = await question("📎 Enter the markdown URL: ");
 
-      if (!MARKDOWN_URL || !MARKDOWN_URL.trim()) {
-        console.error("\n❌ Error: URL is required\n");
-        rl.close();
-        process.exit(1);
+        if (!MARKDOWN_URL || !MARKDOWN_URL.trim()) {
+          console.error("\n❌ Error: URL is required\n");
+          rl.close();
+          process.exit(1);
+        }
+      }
+
+      if (!CONTENT_TYPE) {
+        CONTENT_TYPE = await question(
+          "📝 Enter the content type ID (e.g., 'post', 'article'): "
+        );
+
+        if (!CONTENT_TYPE || !CONTENT_TYPE.trim()) {
+          console.error("\n❌ Error: Content type ID is required\n");
+          rl.close();
+          process.exit(1);
+        }
       }
 
       console.log("\n" + "─".repeat(60));
     }
 
-    await generateImport(MARKDOWN_URL);
+    await generateImport(MARKDOWN_URL, CONTENT_TYPE);
   } catch (error) {
     console.error("\n❌ Error generating import:", error.message, "\n");
     process.exit(1);
