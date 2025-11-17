@@ -5,10 +5,6 @@
 // ────────────────────────────────────────────────────────────────────────────
 // Import/Export Settings
 // ────────────────────────────────────────────────────────────────────────────
-// Set to true to automatically publish entries on import (generate.js & import.js)
-// Set to false to import entries as drafts
-const PUBLISH = true;
-
 // Always export validation errors to CSV when running the complete workflow (run-all.js)
 const EXPORT_ERRORS = true;
 
@@ -30,8 +26,6 @@ const LONG_LINE_WARNING_THRESHOLD = 10;
 // ============================================================================
 
 // System constants (generally should not be modified)
-const INITIAL_PUBLISHED_VERSION = 1;
-
 // Entry ID extraction patterns for Contentful CLI output
 const ENTRY_ID_PATTERNS = [
   {
@@ -54,13 +48,10 @@ const ENTRY_ID_PATTERNS = [
 
 module.exports = {
   // User-configurable constants
-  PUBLISH,
   EXPORT_ERRORS,
   DEFAULT_LOCALE,
   MAX_LINE_LENGTH,
   LONG_LINE_WARNING_THRESHOLD,
   // System constants
-  INITIAL_PUBLISHED_VERSION,
   ENTRY_ID_PATTERNS,
 };
-

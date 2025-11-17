@@ -10,11 +10,7 @@ const {
 } = require("./utils/prompts");
 const { getFilenameFromUrl } = require("./utils/url-helpers");
 const { parseArgument, hasFlag } = require("./utils/arg-parser");
-const {
-  INITIAL_PUBLISHED_VERSION,
-  DEFAULT_LOCALE,
-  PUBLISH,
-} = require("./utils/constants");
+const { DEFAULT_LOCALE } = require("./utils/constants");
 
 const rl = createInterface();
 
@@ -52,7 +48,7 @@ Options:
                         If not provided, will prompt interactively and can be
                         left blank to auto-generate from the markdown filename
 
-  --body-field <id>     Field ID for the markdown body (e.g., 'markdown', 'body')
+  --body-field <id>     Field ID for the markdown body (e.g., 'body', 'content')
                         REQUIRED - If not provided, will prompt interactively
 
   --help, -h            Show this help message
@@ -117,7 +113,6 @@ function determineTitle(markdown, url, providedTitle) {
  * @param {string} options.titleValue - Title value
  * @param {string} options.bodyField - Field ID for markdown body
  * @param {string} options.markdown - Markdown content
- * @param {boolean} options.publish - Whether to publish on import
  * @returns {Object} Contentful import document
  */
 function buildImportDocument({
@@ -126,7 +121,6 @@ function buildImportDocument({
   titleValue,
   bodyField,
   markdown,
-  publish,
 }) {
   const entrySys = {
     type: "Entry",
@@ -142,23 +136,16 @@ function buildImportDocument({
   };
 
   // The CLI import format mirrors export structure
-  // Add custom metadata to communicate publish setting to import.js
   return {
     contentTypes: [],
     entries: [
       {
-        sys: publish
-          ? { ...entrySys, publishedVersion: INITIAL_PUBLISHED_VERSION }
-          : entrySys,
+        sys: entrySys,
         fields: fields,
       },
     ],
     assets: [],
     locales: [],
-    // Custom metadata for import script to determine whether to publish
-    __metadata: {
-      autoPublish: publish,
-    },
   };
 }
 
@@ -209,14 +196,13 @@ async function generateImport({
   // Determine the title to use
   const titleValue = determineTitle(markdown, markdownUrl, entryTitle);
 
-  // Build import JSON using the configured PUBLISH setting
+  // Build import JSON
   const importDoc = buildImportDocument({
     contentType,
     titleField,
     titleValue,
     bodyField,
     markdown,
-    publish: PUBLISH,
   });
 
   // Write to file
@@ -228,7 +214,6 @@ async function generateImport({
   console.log(`   Title Field: "${titleField}"`);
   console.log(`   Title Value: "${titleValue}"`);
   console.log(`   Body Field: "${bodyField}"`);
-  console.log(`   Publish on import: ${PUBLISH}`);
   console.log(
     `\n💡 Next step: Run 'npm run import' to import to Contentful.\n`
   );
@@ -294,7 +279,7 @@ async function collectParameters() {
   if (!BODY_FIELD) {
     BODY_FIELD = await promptRequired(
       rl,
-      "📄 Enter the body field ID (e.g., 'markdown', 'body', 'content'): ",
+      "📄 Enter the body field ID (e.g., 'body', 'content'): ",
       "Body field ID"
     );
   }

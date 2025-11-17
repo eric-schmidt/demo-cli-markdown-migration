@@ -189,7 +189,7 @@ async function collectParameters() {
   if (!BODY_FIELD) {
     BODY_FIELD = await question(
       rl,
-      "📄 Enter the body field ID (e.g., 'markdown', 'body', 'content'): "
+      "📄 Enter the body field ID (e.g., 'body', 'content'): "
     );
     validateRequired(BODY_FIELD, "Body field ID");
   }

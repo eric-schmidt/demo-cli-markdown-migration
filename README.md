@@ -95,7 +95,7 @@ npm run all
 📝 Enter the content type ID (e.g., 'post', 'article'): blogPost
 🏷️  Enter the title field ID (e.g., 'internalTitle', 'title'): title
 📌 Enter the entry title (leave blank to auto-generate): API Documentation
-📄 Enter the body field ID (e.g., 'markdown', 'body', 'content'): bodyContent
+📄 Enter the body field ID (e.g., 'body', 'content'): bodyContent
 
 ============================================================
 ⚙️  Configuration Summary:
@@ -160,7 +160,7 @@ npm run generate
 📝 Enter the content type ID (e.g., 'post', 'article'): blogPost
 🏷️  Enter the title field ID (e.g., 'internalTitle', 'title'): title
 📌 Enter the entry title (leave blank to auto-generate): API Documentation
-📄 Enter the body field ID (e.g., 'markdown', 'body', 'content'): bodyContent
+📄 Enter the body field ID (e.g., 'body', 'content'): bodyContent
 
 ────────────────────────────────────────────────────────────
 
@@ -173,7 +173,6 @@ npm run generate
    Title Field: "title"
    Title Value: "API Documentation"
    Body Field: "bodyContent"
-   Publish on import: true
 
 💡 Next step: Run 'npm run import' to import to Contentful.
 ```
@@ -329,7 +328,6 @@ node src/generate.js --url https://raw.githubusercontent.com/user/repo/main/doc.
 ✅ import.json successfully generated!
    Location: outputs/import.json
    Title: "Markdown Testing Document"
-   Publish on import: true
 
 💡 Next step: Run 'npm run import' to import to Contentful.
 ```
@@ -732,19 +730,7 @@ if (!md.includes("## Introduction")) {
 
 All user-configurable constants are centralized in `src/utils/constants.js` for easy management.
 
-#### Toggle Auto-Publish
-
-In `src/utils/constants.js`, change the `PUBLISH` flag:
-
-```javascript
-// Set to true to automatically publish entries on import (generate.js & import.js)
-// Set to false to import entries as drafts
-const PUBLISH = false; // Don't publish on import
-```
-
-This setting is automatically passed to the import process and will control whether entries are published or left as drafts.
-
-#### Other Configurable Settings
+#### Configurable Settings
 
 In `src/utils/constants.js`, you can also configure:
 
