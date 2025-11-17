@@ -2,7 +2,7 @@
 
 > **NOTE:** This script is a proof-of-concept and should be treated as such. Before deploying this script or operating on any production content, be sure to thoroughly test and ensure you understand how the key commands operate at a base level.
 
-A Node.js tool that fetches markdown from any public URL, validates its structure, and generates a Contentful-compatible import file. The tool features clean separation of concerns with dedicated scripts for generation, validation, and import. Additionally, `src/content-model.js` is included so that you can automatically set up a compatible Contentful Space with the necessary content type + fields in order to test the import.
+A Node.js tool that fetches markdown from any public URL, validates its structure, and generates a Contentful-compatible import file. The tool features clean separation of concerns with dedicated scripts for generation, validation, and import.
 
 ## Features
 
@@ -20,26 +20,21 @@ A Node.js tool that fetches markdown from any public URL, validates its structur
 ## Quick Start
 
 ```bash
-# 1. (optional, first time only) Create example content type
-# This creates a 'post' content type with 'internalTitle' and 'markdown' fields
-# You can skip this if you already have a content type or want to use different field IDs
-contentful space migration --space-id <Contentful Space ID> --environment-id <Contentful Environment ID> src/content-model.js
-
-# 2. Install dependencies
+# 1. Install dependencies
 npm install
 
-# 3. Setup .env file (first time only)
+# 2. Setup .env file (first time only)
 cp .env.example .env
 # Edit .env with your CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID,
 # which will then be used when running "npm run import" below.
 
-# 4. Generate import file (creates outputs/import.json)
+# 3. Generate import file (creates outputs/import.json)
 # You'll be prompted for: content type ID, title field ID, entry title, body field ID, then URL
 npm run generate        # Quick generation (no validation)
 # OR
 npm run validate        # Run validation & optionally export errors
 
-# 5. Import to Contentful using the Space configured in .env file
+# 4. Import to Contentful using the Space configured in .env file
 npm run import
 ```
 
