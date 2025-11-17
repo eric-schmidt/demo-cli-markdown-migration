@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // import-to-contentful.js
-const { execSync } = require("child_process");
+const { execSync, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -100,23 +100,110 @@ Or use npx to run it without installing:
   }
 
   // Build the contentful CLI command
-  const command = `contentful space import --space-id ${CONTENTFUL_SPACE_ID} --environment-id ${CONTENTFUL_ENVIRONMENT_ID} --content-file outputs/import.json`;
+  const commandArgs = [
+    "space",
+    "import",
+    "--space-id",
+    CONTENTFUL_SPACE_ID,
+    "--environment-id",
+    CONTENTFUL_ENVIRONMENT_ID,
+    "--content-file",
+    "outputs/import.json",
+  ];
 
   console.log(`🚀 Running command:`);
-  console.log(`   ${command}\n`);
+  console.log(
+    `   contentful ${commandArgs.join(" ")}\n`
+  );
   console.log("─".repeat(60) + "\n");
 
-  try {
-    // Execute the command and inherit stdio to show real-time output
-    execSync(command, { stdio: "inherit" });
+  // Use spawn to capture output while displaying it
+  const child = spawn("contentful", commandArgs, {
+    stdio: ["inherit", "pipe", "pipe"],
+    shell: false,
+  });
+
+  let output = "";
+  let errorOutput = "";
+
+  // Capture and display stdout
+  child.stdout.on("data", (data) => {
+    const chunk = data.toString();
+    process.stdout.write(chunk);
+    output += chunk;
+  });
+
+  // Capture and display stderr
+  child.stderr.on("data", (data) => {
+    const chunk = data.toString();
+    process.stderr.write(chunk);
+    errorOutput += chunk;
+  });
+
+  child.on("close", (code) => {
+    if (code !== 0) {
+      console.error("\n" + "─".repeat(60));
+      console.error("\n❌ Import failed. Check the error messages above.\n");
+      process.exit(1);
+    }
 
     console.log("\n" + "─".repeat(60));
-    console.log("\n✅ Import completed successfully!\n");
-  } catch (error) {
-    console.error("\n" + "─".repeat(60));
-    console.error("\n❌ Import failed. Check the error messages above.\n");
+    console.log("\n✅ Import completed successfully!");
+
+    // Combine stdout and stderr for pattern matching
+    const combinedOutput = output + "\n" + errorOutput;
+
+    // Try to extract entry ID from the output
+    let entryId = null;
+
+    // Try multiple patterns to extract entry ID from CLI output
+    const patterns = [
+      /(?:Created|Published|Updated)\s+Entry\s+([a-zA-Z0-9]+)/i,
+      /entry[:\s]+([a-zA-Z0-9]{20,})/i, // Generic "entry: ID" pattern
+      /"id":\s*"([a-zA-Z0-9]{20,})"/, // JSON format
+      /sys\.id[:\s]+([a-zA-Z0-9]{20,})/i, // sys.id pattern
+    ];
+
+    for (const pattern of patterns) {
+      const match = combinedOutput.match(pattern);
+      if (match && match[1]) {
+        entryId = match[1];
+        break;
+      }
+    }
+
+    // If we still don't have an entry ID, try reading the import.json
+    if (!entryId) {
+      try {
+        const importData = JSON.parse(
+          fs.readFileSync(importFilePath, "utf8")
+        );
+        if (importData.entries && importData.entries.length > 0) {
+          console.log(
+            "\n💡 Entry imported successfully (ID not captured from CLI output)"
+          );
+        }
+      } catch (e) {
+        // Ignore read errors
+      }
+    }
+
+    // If we found an entry ID, output it in a machine-readable format
+    if (entryId) {
+      console.log(`\n📝 ENTRY_ID=${entryId}`);
+    }
+
+    console.log("");
+  });
+
+  child.on("error", (error) => {
+    console.error(
+      "\n❌ Failed to start import process:",
+      error.message,
+      "\n"
+    );
     process.exit(1);
-  }
+  });
 }
 
 // Run the import

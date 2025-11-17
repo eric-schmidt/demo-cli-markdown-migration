@@ -4,11 +4,14 @@
   "description": "Generate a well-formatted JSON file from Markdown that can then be used import into Contentful using the Contentful CLI.",
   "main": "src/generate.js",
   "scripts": {
+    "all": "node src/run-all.js",
     "generate": "node src/generate.js",
     "validate": "node src/validate.js",
     "import": "node src/import.js",
+    "help:all": "node src/run-all.js --help",
     "help:generate": "node src/generate.js --help",
     "help:validate": "node src/validate.js --help",
+    "example:all": "node src/run-all.js --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/refs/heads/main/markdown/markdown.md --content-type article --title-field internalTitle --body-field markdown",
     "example:generate": "node src/generate.js --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/refs/heads/main/markdown/markdown.md",
     "example:validate": "node src/validate.js --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/refs/heads/main/markdown/markdown-broken.md",
     "example:validate-export": "node src/validate.js --url https://raw.githubusercontent.com/eric-schmidt/demo-cli-markdown-migration/refs/heads/main/markdown/markdown-broken.md --export-errors"

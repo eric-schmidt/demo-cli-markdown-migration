@@ -234,12 +234,12 @@ async function generateImport(
 async function main() {
   try {
     // If any required parameters are missing, prompt for them
+    // Note: ENTRY_TITLE is optional and will be auto-generated if not provided
     if (
       !CONTENT_TYPE ||
       !TITLE_FIELD ||
       !BODY_FIELD ||
-      !MARKDOWN_URL ||
-      !ENTRY_TITLE
+      !MARKDOWN_URL
     ) {
       console.log("\n📦 Generate Contentful Import File");
       console.log("─".repeat(60) + "\n");
@@ -318,6 +318,13 @@ async function main() {
       );
       rl.close();
       process.exit(1);
+    }
+
+    // Auto-generate ENTRY_TITLE if not provided (even when running non-interactively)
+    if (!ENTRY_TITLE || !ENTRY_TITLE.trim()) {
+      const defaultTitle = getFilenameFromUrl(MARKDOWN_URL);
+      ENTRY_TITLE = defaultTitle;
+      console.log(`\n📌 Using auto-generated title: "${defaultTitle}"`);
     }
 
     await generateImport(
