@@ -68,13 +68,29 @@ if (titleIndex !== -1 && args[titleIndex + 1]) {
   ENTRY_TITLE = args[titleIndex + 1];
 }
 
+// Parse title field parameter
+const titleFieldIndex = args.indexOf("--title-field");
+let TITLE_FIELD = null;
+
+if (titleFieldIndex !== -1 && args[titleFieldIndex + 1]) {
+  TITLE_FIELD = args[titleFieldIndex + 1];
+}
+
+// Parse body field parameter
+const bodyFieldIndex = args.indexOf("--body-field");
+let BODY_FIELD = null;
+
+if (bodyFieldIndex !== -1 && args[bodyFieldIndex + 1]) {
+  BODY_FIELD = args[bodyFieldIndex + 1];
+}
+
 // Show help if requested
 if (HELP_MODE) {
   console.log(`
 📝 Contentful Markdown Import Generator
 ========================================
 
-Usage: node src/generate.js [--url <markdown-url>] [--content-type <type-id>] [--title <entry-title>]
+Usage: node src/generate.js [options]
 
 Options:
   --url <url>           URL of the markdown file to import
@@ -83,17 +99,28 @@ Options:
                         If not provided, will prompt interactively
 
   --content-type <id>   Content type ID to import into (e.g., 'post', 'article')
-                        If not provided, will prompt interactively
+                        REQUIRED - If not provided, will prompt interactively
 
-  --title <title>       Title for the entry
-                        If not provided, will prompt interactively with a default
-                        based on the markdown filename
+  --title-field <id>    Field ID for the entry title (e.g., 'internalTitle', 'title')
+                        REQUIRED - If not provided, will prompt interactively
+
+  --title <title>       Value for the entry title
+                        If not provided, will prompt interactively and can be
+                        left blank to auto-generate from the markdown filename
+
+  --body-field <id>     Field ID for the markdown body (e.g., 'markdown', 'body')
+                        REQUIRED - If not provided, will prompt interactively
 
   --help, -h            Show this help message
 
 Examples:
-  # Generate import from GitHub URL with specific content type and title
-  node src/generate.js --url https://raw.githubusercontent.com/user/repo/main/doc.md --content-type article --title "My Article"
+  # Generate import with all parameters specified
+  node src/generate.js \\
+    --url https://raw.githubusercontent.com/user/repo/main/doc.md \\
+    --content-type article \\
+    --title-field internalTitle \\
+    --title "My Article" \\
+    --body-field markdown
 
   # Generate import with interactive prompts
   node src/generate.js
@@ -117,7 +144,13 @@ Tip: Use 'npm run validate' to check markdown quality before importing.
 /**
  * Generate import.json from markdown URL
  */
-async function generateImport(markdownUrl, contentType, entryTitle) {
+async function generateImport(
+  markdownUrl,
+  contentType,
+  titleField,
+  entryTitle,
+  bodyField
+) {
   // 1) Fetch markdown from URL
   console.log(`\n📥 Fetching markdown from: ${markdownUrl}`);
   const response = await fetch(markdownUrl);
@@ -132,16 +165,16 @@ async function generateImport(markdownUrl, contentType, entryTitle) {
   console.log(`✅ Successfully fetched ${md.length} characters\n`);
 
   // 2) Use provided title, or derive from first H1, or fall back to filename-based default
-  let internalTitle = entryTitle;
+  let titleValue = entryTitle;
 
-  if (!internalTitle || !internalTitle.trim()) {
+  if (!titleValue || !titleValue.trim()) {
     // Try to extract title from first H1 heading
     const titleMatch = md.match(/^#\s+(.+?)\s*$/m);
     if (titleMatch) {
-      internalTitle = titleMatch[1].trim();
+      titleValue = titleMatch[1].trim();
     } else {
       // Fall back to filename from URL
-      internalTitle = getFilenameFromUrl(markdownUrl);
+      titleValue = getFilenameFromUrl(markdownUrl);
     }
   }
 
@@ -155,6 +188,12 @@ async function generateImport(markdownUrl, contentType, entryTitle) {
     },
   };
 
+  // Build fields object dynamically using the provided field IDs
+  const fields = {
+    [titleField]: { "en-US": titleValue },
+    [bodyField]: { "en-US": md },
+  };
+
   // The CLI import format mirrors export structure
   // Top-level arrays: contentTypes, entries, assets, locales, etc.
   const importDoc = {
@@ -162,10 +201,7 @@ async function generateImport(markdownUrl, contentType, entryTitle) {
     entries: [
       {
         sys: PUBLISH ? { ...entrySys, publishedVersion: 1 } : entrySys,
-        fields: {
-          internalTitle: { "en-US": internalTitle },
-          markdown: { "en-US": md },
-        },
+        fields: fields,
       },
     ],
     assets: [],
@@ -185,7 +221,9 @@ async function generateImport(markdownUrl, contentType, entryTitle) {
   console.log("✅ import.json successfully generated!");
   console.log(`   Location: outputs/import.json`);
   console.log(`   Content Type: "${contentType}"`);
-  console.log(`   Title: "${internalTitle}"`);
+  console.log(`   Title Field: "${titleField}"`);
+  console.log(`   Title Value: "${titleValue}"`);
+  console.log(`   Body Field: "${bodyField}"`);
   console.log(`   Publish on import: ${PUBLISH}`);
   console.log(
     `\n💡 Next step: Run 'npm run import' to import to Contentful.\n`
@@ -195,21 +233,18 @@ async function generateImport(markdownUrl, contentType, entryTitle) {
 // Main execution
 async function main() {
   try {
-    // If URL, content type, or title not provided via CLI, prompt for them
-    if (!MARKDOWN_URL || !CONTENT_TYPE || !ENTRY_TITLE) {
+    // If any required parameters are missing, prompt for them
+    if (
+      !CONTENT_TYPE ||
+      !TITLE_FIELD ||
+      !BODY_FIELD ||
+      !MARKDOWN_URL ||
+      !ENTRY_TITLE
+    ) {
       console.log("\n📦 Generate Contentful Import File");
       console.log("─".repeat(60) + "\n");
 
-      if (!MARKDOWN_URL) {
-        MARKDOWN_URL = await question("📎 Enter the markdown URL: ");
-
-        if (!MARKDOWN_URL || !MARKDOWN_URL.trim()) {
-          console.error("\n❌ Error: URL is required\n");
-          rl.close();
-          process.exit(1);
-        }
-      }
-
+      // Prompt 1: Content Type ID
       if (!CONTENT_TYPE) {
         CONTENT_TYPE = await question(
           "📝 Enter the content type ID (e.g., 'post', 'article'): "
@@ -222,24 +257,76 @@ async function main() {
         }
       }
 
-      if (!ENTRY_TITLE) {
-        // Generate a default title suggestion from the filename
-        const defaultTitle = getFilenameFromUrl(MARKDOWN_URL);
-        const titlePrompt = `📌 Enter the entry title (default: "${defaultTitle}"): `;
+      // Prompt 2: Title Field ID (REQUIRED)
+      if (!TITLE_FIELD) {
+        TITLE_FIELD = await question(
+          "🏷️  Enter the title field ID (e.g., 'internalTitle', 'title'): "
+        );
 
-        ENTRY_TITLE = await question(titlePrompt);
-
-        // If user didn't provide a title, use the default
-        if (!ENTRY_TITLE || !ENTRY_TITLE.trim()) {
-          ENTRY_TITLE = defaultTitle;
-          console.log(`   Using default: "${defaultTitle}"`);
+        if (!TITLE_FIELD || !TITLE_FIELD.trim()) {
+          console.error("\n❌ Error: Title field ID is required\n");
+          rl.close();
+          process.exit(1);
         }
+      }
+
+      // Prompt 3: Entry Title (will apply filename default later if empty)
+      if (!ENTRY_TITLE) {
+        const titlePrompt = `📌 Enter the entry title (leave blank to auto-generate from filename): `;
+        ENTRY_TITLE = await question(titlePrompt);
+        // Note: We'll apply the filename default after getting the URL if this is empty
+      }
+
+      // Prompt 4: Body Field ID (REQUIRED)
+      if (!BODY_FIELD) {
+        BODY_FIELD = await question(
+          "📄 Enter the body field ID (e.g., 'markdown', 'body', 'content'): "
+        );
+
+        if (!BODY_FIELD || !BODY_FIELD.trim()) {
+          console.error("\n❌ Error: Body field ID is required\n");
+          rl.close();
+          process.exit(1);
+        }
+      }
+
+      // Prompt 5: Markdown URL (last)
+      if (!MARKDOWN_URL) {
+        MARKDOWN_URL = await question("📎 Enter the markdown URL: ");
+
+        if (!MARKDOWN_URL || !MARKDOWN_URL.trim()) {
+          console.error("\n❌ Error: Markdown URL is required\n");
+          rl.close();
+          process.exit(1);
+        }
+      }
+
+      // Now that we have the URL, apply filename default for title if needed
+      if (!ENTRY_TITLE || !ENTRY_TITLE.trim()) {
+        const defaultTitle = getFilenameFromUrl(MARKDOWN_URL);
+        ENTRY_TITLE = defaultTitle;
+        console.log(`   Using auto-generated title: "${defaultTitle}"`);
       }
 
       console.log("\n" + "─".repeat(60));
     }
 
-    await generateImport(MARKDOWN_URL, CONTENT_TYPE, ENTRY_TITLE);
+    // Validate all required fields are present
+    if (!CONTENT_TYPE || !TITLE_FIELD || !BODY_FIELD || !MARKDOWN_URL) {
+      console.error(
+        "\n❌ Error: Missing required parameters. Use --help for usage information.\n"
+      );
+      rl.close();
+      process.exit(1);
+    }
+
+    await generateImport(
+      MARKDOWN_URL,
+      CONTENT_TYPE,
+      TITLE_FIELD,
+      ENTRY_TITLE,
+      BODY_FIELD
+    );
   } catch (error) {
     console.error("\n❌ Error generating import:", error.message, "\n");
     process.exit(1);

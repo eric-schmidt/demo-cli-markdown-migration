@@ -20,7 +20,9 @@ A Node.js tool that fetches markdown from any public URL, validates its structur
 ## Quick Start
 
 ```bash
-# 1. (optional, first time only)
+# 1. (optional, first time only) Create example content type
+# This creates a 'post' content type with 'internalTitle' and 'markdown' fields
+# You can skip this if you already have a content type or want to use different field IDs
 contentful space migration --space-id <Contentful Space ID> --environment-id <Contentful Environment ID> src/content-model.js
 
 # 2. Install dependencies
@@ -28,10 +30,11 @@ npm install
 
 # 3. Setup .env file (first time only)
 cp .env.example .env
-# Edit .env with your Contentful CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID,
+# Edit .env with your CONTENTFUL_SPACE_ID and CONTENTFUL_ENVIRONMENT_ID,
 # which will then be used when running "npm run import" below.
 
 # 4. Generate import file (creates outputs/import.json)
+# You'll be prompted for: content type ID, title field ID, entry title, body field ID, then URL
 npm run generate        # Quick generation (no validation)
 # OR
 npm run validate        # Run validation & optionally export errors
@@ -43,9 +46,9 @@ npm run import
 ## Requirements
 
 - Node.js 18+ (for built-in `fetch()`)
-- A Contentful space with a `post` content type containing:
-  - `internalTitle` field (Text)
-  - `markdown` field (Long text)
+- A Contentful space with a content type containing:
+  - A text field for the entry title (field ID configurable, e.g., `internalTitle`, `title`)
+  - A long text field for the markdown body (field ID configurable, e.g., `markdown`, `body`, `content`)
 
 ## Table of Contents
 
@@ -88,20 +91,23 @@ npm run generate
 📦 Generate Contentful Import File
 ────────────────────────────────────────────────────────────
 
+📝 Enter the content type ID (e.g., 'post', 'article'): blogPost
+🏷️  Enter the title field ID (e.g., 'internalTitle', 'title'): title
+📌 Enter the entry title (leave blank to auto-generate from filename): API Documentation
+📄 Enter the body field ID (e.g., 'markdown', 'body', 'content'): bodyContent
 📎 Enter the markdown URL: https://example.com/doc.md
 
 ────────────────────────────────────────────────────────────
-
-⚙️  Configuration:
-   URL: https://example.com/doc.md
-   Mode: Generate import.json
 
 📥 Fetching markdown from: https://example.com/doc.md
 ✅ Successfully fetched 9,845 characters
 
 ✅ import.json successfully generated!
    Location: outputs/import.json
-   Title: "API Documentation"
+   Content Type: "blogPost"
+   Title Field: "title"
+   Title Value: "API Documentation"
+   Body Field: "bodyContent"
    Publish on import: true
 
 💡 Next step: Run 'npm run import' to import to Contentful.
@@ -151,8 +157,13 @@ npm run validate
 For automation or scripting, use the direct commands:
 
 ```bash
-# Generate import file
-node src/generate.js --url <markdown-url>
+# Generate import file with all parameters
+node src/generate.js \
+  --url <markdown-url> \
+  --content-type <content-type-id> \
+  --title-field <title-field-id> \
+  --title <entry-title> \
+  --body-field <body-field-id>
 
 # Validate markdown
 node src/validate.js --url <markdown-url> [--export-errors]
@@ -165,8 +176,12 @@ node src/import.js
 
 **Generate (`src/generate.js`):**
 | Option | Description |
-| -------------- | --------------------------------------------- |
-| `--url <url>` | URL of the markdown file to import (required if not prompted) |
+| ------------------------ | --------------------------------------------- |
+| `--url <url>` | URL of the markdown file to import (required) |
+| `--content-type <id>` | Content type ID (required) |
+| `--title-field <id>` | Field ID for entry title (required) |
+| `--title <title>` | Entry title value (optional, defaults to filename or H1) |
+| `--body-field <id>` | Field ID for markdown body (required) |
 | `--help, -h` | Show help message |
 
 **Validate (`src/validate.js`):**
@@ -179,14 +194,21 @@ node src/import.js
 ### Quick Examples
 
 ```bash
-# Generate import file
-node src/generate.js --url https://raw.githubusercontent.com/user/repo/main/README.md
+# Generate import file with all parameters
+node src/generate.js \
+  --url https://raw.githubusercontent.com/user/repo/main/README.md \
+  --content-type blogPost \
+  --title-field title \
+  --title "My Blog Post" \
+  --body-field bodyContent
+
+# Generate import with interactive prompts
+node src/generate.js
 
 # Validate markdown and export errors
 node src/validate.js --url https://example.com/doc.md --export-errors
 
-# Run interactively (prompts for URL)
-node src/generate.js
+# Run validate interactively
 node src/validate.js
 ```
 
@@ -937,9 +959,9 @@ Make sure you have:
    - Create `.env` file with `CONTENTFUL_SPACE_ID` and `CONTENTFUL_ENVIRONMENT_ID`
 
 4. **Required content type**
-   - A `post` content type with:
-     - `internalTitle` field (Short text)
-     - `markdown` field (Long text)
+   - A content type (e.g., `post`, `article`, `blogPost`) with:
+     - A text field for the entry title (field ID specified during generation)
+     - A long text field for the markdown body (field ID specified during generation)
 
 ---
 
