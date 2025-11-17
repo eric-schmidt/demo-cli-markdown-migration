@@ -4,13 +4,29 @@
 const { execSync, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { loadEnvFile } = require("./utils/env-loader");
+const { ENTRY_ID_PATTERNS } = require("./utils/constants");
 
-// Load environment variables from .env file
-function loadEnvFile() {
-  const envPath = path.join(__dirname, "..", ".env");
+/**
+ * Displays error message when import.json is not found
+ */
+function displayImportFileNotFoundError() {
+  console.error(`
+❌ Error: outputs/import.json not found
 
-  if (!fs.existsSync(envPath)) {
-    console.error(`
+Please generate the import file first by running:
+  npm run generate
+
+Or:
+  node src/generate.js --url <markdown-url>
+`);
+}
+
+/**
+ * Displays error message when .env file is not found
+ */
+function displayEnvFileNotFoundError() {
+  console.error(`
 ❌ Error: .env file not found
 
 Please create a .env file with the following content:
@@ -22,188 +38,218 @@ Example:
   cp env.example .env
   # Then edit .env with your Contentful credentials
 `);
-    process.exit(1);
-  }
-
-  const envContent = fs.readFileSync(envPath, "utf8");
-  const envVars = {};
-
-  envContent.split("\n").forEach((line) => {
-    // Skip empty lines and comments
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-
-    // Parse KEY=VALUE
-    const match = trimmed.match(/^([A-Z_]+)=(.*)$/);
-    if (match) {
-      const [, key, value] = match;
-      envVars[key] = value;
-    }
-  });
-
-  return envVars;
 }
 
-// Main function
-function importToContentful() {
-  console.log("📦 Starting Contentful import process...\n");
-
-  // Check if import.json exists
-  const importFilePath = path.join(__dirname, "..", "outputs", "import.json");
-  if (!fs.existsSync(importFilePath)) {
-    console.error(`
-❌ Error: outputs/import.json not found
-
-Please generate the import file first by running:
-  npm run generate
-
-Or:
-  node src/generate.js --url <markdown-url>
-`);
-    process.exit(1);
-  }
-
-  // Load environment variables
-  const envVars = loadEnvFile();
-  const { CONTENTFUL_SPACE_ID, CONTENTFUL_ENVIRONMENT_ID } = envVars;
-
-  // Validate required environment variables
-  if (!CONTENTFUL_SPACE_ID) {
-    console.error("❌ Error: CONTENTFUL_SPACE_ID not found in .env file");
-    process.exit(1);
-  }
-
-  if (!CONTENTFUL_ENVIRONMENT_ID) {
-    console.error("❌ Error: CONTENTFUL_ENVIRONMENT_ID not found in .env file");
-    process.exit(1);
-  }
-
-  console.log(`🔧 Configuration:`);
-  console.log(`   Space ID: ${CONTENTFUL_SPACE_ID}`);
-  console.log(`   Environment: ${CONTENTFUL_ENVIRONMENT_ID}`);
-  console.log(`   Import File: outputs/import.json\n`);
-
-  // Check if contentful-cli is installed
-  try {
-    execSync("contentful --version", { stdio: "ignore" });
-  } catch (error) {
-    console.error(`
+/**
+ * Displays error when Contentful CLI is not installed
+ * @param {string} spaceId - Space ID for example command
+ * @param {string} environmentId - Environment ID for example command
+ */
+function displayCLINotFoundError(spaceId, environmentId) {
+  console.error(`
 ❌ Error: Contentful CLI not found
 
 Please install the Contentful CLI globally:
   npm install -g contentful-cli
 
 Or use npx to run it without installing:
-  npx contentful-cli space import --space-id ${CONTENTFUL_SPACE_ID} --environment-id ${CONTENTFUL_ENVIRONMENT_ID} --content-file outputs/import.json
+  npx contentful-cli space import --space-id ${spaceId} --environment-id ${environmentId} --content-file outputs/import.json
 `);
+}
+
+/**
+ * Validates the import.json file exists
+ * @returns {string} Path to the import file
+ * @throws {Error} If file doesn't exist
+ */
+function validateImportFile() {
+  const importFilePath = path.join(__dirname, "..", "outputs", "import.json");
+  if (!fs.existsSync(importFilePath)) {
+    displayImportFileNotFoundError();
+    process.exit(1);
+  }
+  return importFilePath;
+}
+
+/**
+ * Loads and validates environment variables
+ * @returns {Object} Environment variables with spaceId and environmentId
+ */
+function loadAndValidateEnv() {
+  let envVars;
+  try {
+    envVars = loadEnvFile();
+  } catch (error) {
+    displayEnvFileNotFoundError();
     process.exit(1);
   }
 
-  // Build the contentful CLI command
-  const commandArgs = [
-    "space",
-    "import",
-    "--space-id",
-    CONTENTFUL_SPACE_ID,
-    "--environment-id",
-    CONTENTFUL_ENVIRONMENT_ID,
-    "--content-file",
-    "outputs/import.json",
-  ];
+  const { CONTENTFUL_SPACE_ID, CONTENTFUL_ENVIRONMENT_ID } = envVars;
 
-  console.log(`🚀 Running command:`);
-  console.log(
-    `   contentful ${commandArgs.join(" ")}\n`
-  );
-  console.log("─".repeat(60) + "\n");
+  if (!CONTENTFUL_SPACE_ID) {
+    console.error(`❌ Error: CONTENTFUL_SPACE_ID not found in .env file`);
+    process.exit(1);
+  }
 
-  // Use spawn to capture output while displaying it
-  const child = spawn("contentful", commandArgs, {
-    stdio: ["inherit", "pipe", "pipe"],
-    shell: false,
+  if (!CONTENTFUL_ENVIRONMENT_ID) {
+    console.error(`❌ Error: CONTENTFUL_ENVIRONMENT_ID not found in .env file`);
+    process.exit(1);
+  }
+
+  return {
+    spaceId: CONTENTFUL_SPACE_ID,
+    environmentId: CONTENTFUL_ENVIRONMENT_ID,
+  };
+}
+
+/**
+ * Checks if Contentful CLI is installed
+ * @param {string} spaceId - Space ID for error message
+ * @param {string} environmentId - Environment ID for error message
+ * @returns {boolean} True if CLI is installed
+ */
+function checkCLIInstalled(spaceId, environmentId) {
+  try {
+    execSync("contentful --version", { stdio: "ignore" });
+    return true;
+  } catch (error) {
+    displayCLINotFoundError(spaceId, environmentId);
+    process.exit(1);
+  }
+}
+
+/**
+ * Attempts to extract entry ID from CLI output
+ * @param {string} output - Combined stdout and stderr from CLI
+ * @returns {string|null} Extracted entry ID or null
+ */
+function extractEntryId(output) {
+  for (const pattern of ENTRY_ID_PATTERNS) {
+    const match = output.match(pattern.regex);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+/**
+ * Runs the Contentful CLI import command
+ * @param {string} spaceId - Contentful space ID
+ * @param {string} environmentId - Contentful environment ID
+ * @returns {Promise<Object>} Result with success status and output
+ */
+function runImportCommand(spaceId, environmentId) {
+  return new Promise((resolve, reject) => {
+    const commandArgs = [
+      "space",
+      "import",
+      "--space-id",
+      spaceId,
+      "--environment-id",
+      environmentId,
+      "--content-file",
+      "outputs/import.json",
+    ];
+
+    console.log(`🚀 Running command:`);
+    console.log(`   contentful ${commandArgs.join(" ")}\n`);
+    console.log("─".repeat(60) + "\n");
+
+    const child = spawn("contentful", commandArgs, {
+      stdio: ["inherit", "pipe", "pipe"],
+      shell: false,
+    });
+
+    let output = "";
+    let errorOutput = "";
+
+    // Capture and display stdout
+    child.stdout.on("data", (data) => {
+      const chunk = data.toString();
+      process.stdout.write(chunk);
+      output += chunk;
+    });
+
+    // Capture and display stderr
+    child.stderr.on("data", (data) => {
+      const chunk = data.toString();
+      process.stderr.write(chunk);
+      errorOutput += chunk;
+    });
+
+    child.on("close", (code) => {
+      const combinedOutput = output + "\n" + errorOutput;
+      resolve({ success: code === 0, output: combinedOutput });
+    });
+
+    child.on("error", (error) => {
+      reject(error);
+    });
   });
+}
 
-  let output = "";
-  let errorOutput = "";
+/**
+ * Displays success message with optional entry ID and link
+ * @param {string|null} entryId - The imported entry ID
+ * @param {string} spaceId - Contentful space ID
+ * @param {string} environmentId - Contentful environment ID
+ */
+function displaySuccessMessage(entryId, spaceId, environmentId) {
+  console.log("\n" + "─".repeat(60));
+  console.log("\n✅ Import completed successfully!");
 
-  // Capture and display stdout
-  child.stdout.on("data", (data) => {
-    const chunk = data.toString();
-    process.stdout.write(chunk);
-    output += chunk;
-  });
+  if (spaceId && environmentId && entryId) {
+    // Direct link to the specific entry
+    const entryUrl = `https://app.contentful.com/spaces/${spaceId}/environments/${environmentId}/entries/${entryId}`;
+    console.log("\n🔗 View your entry in Contentful:");
+    console.log(`   ${entryUrl}\n`);
+  } else {
+    console.log(
+      "\n💡 Entry imported successfully (ID not captured from CLI output)"
+    );
+  }
 
-  // Capture and display stderr
-  child.stderr.on("data", (data) => {
-    const chunk = data.toString();
-    process.stderr.write(chunk);
-    errorOutput += chunk;
-  });
+  console.log("");
+}
 
-  child.on("close", (code) => {
-    if (code !== 0) {
+// Main function
+async function importToContentful() {
+  console.log("📦 Starting Contentful import process...\n");
+
+  // Validate import file exists
+  const importFilePath = validateImportFile();
+
+  // Load and validate environment variables
+  const { spaceId, environmentId } = loadAndValidateEnv();
+
+  console.log(`🔧 Configuration:`);
+  console.log(`   Space ID: ${spaceId}`);
+  console.log(`   Environment: ${environmentId}`);
+  console.log(`   Import File: outputs/import.json\n`);
+
+  // Check if contentful-cli is installed
+  checkCLIInstalled(spaceId, environmentId);
+
+  try {
+    // Run the import command
+    const result = await runImportCommand(spaceId, environmentId);
+
+    if (!result.success) {
       console.error("\n" + "─".repeat(60));
       console.error("\n❌ Import failed. Check the error messages above.\n");
       process.exit(1);
     }
 
-    console.log("\n" + "─".repeat(60));
-    console.log("\n✅ Import completed successfully!");
+    // Extract entry ID from output
+    const entryId = extractEntryId(result.output);
 
-    // Combine stdout and stderr for pattern matching
-    const combinedOutput = output + "\n" + errorOutput;
-
-    // Try to extract entry ID from the output
-    let entryId = null;
-
-    // Try multiple patterns to extract entry ID from CLI output
-    const patterns = [
-      /(?:Created|Published|Updated)\s+Entry\s+([a-zA-Z0-9]+)/i,
-      /entry[:\s]+([a-zA-Z0-9]{20,})/i, // Generic "entry: ID" pattern
-      /"id":\s*"([a-zA-Z0-9]{20,})"/, // JSON format
-      /sys\.id[:\s]+([a-zA-Z0-9]{20,})/i, // sys.id pattern
-    ];
-
-    for (const pattern of patterns) {
-      const match = combinedOutput.match(pattern);
-      if (match && match[1]) {
-        entryId = match[1];
-        break;
-      }
-    }
-
-    // If we still don't have an entry ID, try reading the import.json
-    if (!entryId) {
-      try {
-        const importData = JSON.parse(
-          fs.readFileSync(importFilePath, "utf8")
-        );
-        if (importData.entries && importData.entries.length > 0) {
-          console.log(
-            "\n💡 Entry imported successfully (ID not captured from CLI output)"
-          );
-        }
-      } catch (e) {
-        // Ignore read errors
-      }
-    }
-
-    // If we found an entry ID, output it in a machine-readable format
-    if (entryId) {
-      console.log(`\n📝 ENTRY_ID=${entryId}`);
-    }
-
-    console.log("");
-  });
-
-  child.on("error", (error) => {
-    console.error(
-      "\n❌ Failed to start import process:",
-      error.message,
-      "\n"
-    );
+    // Display success message
+    displaySuccessMessage(entryId, spaceId, environmentId);
+  } catch (error) {
+    console.error("\n❌ Failed to start import process:", error.message, "\n");
     process.exit(1);
-  });
+  }
 }
 
 // Run the import

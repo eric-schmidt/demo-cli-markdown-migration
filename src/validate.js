@@ -4,41 +4,19 @@
 const fs = require("fs");
 const path = require("path");
 const { marked } = require("marked");
-const readline = require("readline");
+const { createInterface, question, confirm } = require("./utils/prompts");
+const { parseArgument, hasFlag } = require("./utils/arg-parser");
+const { arrayToCSV } = require("./utils/csv-helpers");
+const { MAX_LINE_LENGTH, LONG_LINE_WARNING_THRESHOLD } = require("./utils/constants");
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
-// Helper function to prompt for input
-function question(query) {
-  return new Promise((resolve) => {
-    rl.question(query, resolve);
-  });
-}
-
-// Helper function to prompt for yes/no
-function confirm(query) {
-  return new Promise((resolve) => {
-    rl.question(`${query} (y/n): `, (answer) => {
-      resolve(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
-    });
-  });
-}
+const rl = createInterface();
 
 // Parse command line arguments
 const args = process.argv.slice(2);
 const EXPORT_ERRORS = args.includes("--export-errors");
-const HELP_MODE = args.includes("--help") || args.includes("-h");
+const HELP_MODE = hasFlag(args, "--help", "-h");
 
-// Parse URL parameter
-const urlIndex = args.indexOf("--url");
-let MARKDOWN_URL = null;
-
-if (urlIndex !== -1 && args[urlIndex + 1]) {
-  MARKDOWN_URL = args[urlIndex + 1];
-}
+let MARKDOWN_URL = parseArgument(args, "--url");
 
 // Show help if requested
 if (HELP_MODE) {
@@ -85,6 +63,10 @@ Output: Validation report (console) + outputs/validation-errors.csv (optional)
 
 /**
  * Finds the line number for a given substring in the markdown
+ * @param {string} markdown - The markdown content
+ * @param {string} searchText - The text to search for
+ * @param {number} startIndex - Starting index for search
+ * @returns {Object|null} Object with lineNumber and index, or null if not found
  */
 function findLineNumber(markdown, searchText, startIndex = 0) {
   const index = markdown.indexOf(searchText, startIndex);
@@ -96,53 +78,54 @@ function findLineNumber(markdown, searchText, startIndex = 0) {
 }
 
 /**
- * Validates markdown structure and returns analysis results
- * Uses the 'marked' parser to analyze tokens and detect potential issues
- * Displays detailed validation report with metrics and quality checks
+ * Calculates basic document metrics
+ * @param {string} md - Markdown content
+ * @param {string} internalTitle - Document title
+ * @returns {Object} Metrics object
  */
-function validateMarkdown(md, internalTitle) {
-  const issues = [];
-  const warnings = [];
-  const detailedErrors = []; // Track errors with line numbers and details
+function calculateMetrics(md, internalTitle) {
+  const lineCount = md.split("\n").length;
+  const wordCount = md.split(/\s+/).length;
+  
+  return {
+    characters: md.length,
+    lines: lineCount,
+    words: wordCount,
+    title: internalTitle,
+  };
+}
 
+/**
+ * Displays the validation report header
+ */
+function displayReportHeader() {
   console.log("\n" + "=".repeat(60));
   console.log("📋 MARKDOWN VALIDATION REPORT");
   console.log("=".repeat(60) + "\n");
+}
 
-  // Basic metrics
-  const lineCount = md.split("\n").length;
-  const wordCount = md.split(/\s+/).length;
+/**
+ * Displays document metrics
+ * @param {Object} metrics - Document metrics
+ */
+function displayMetrics(metrics) {
   console.log("📊 Document Metrics:");
-  console.log(`   Characters: ${md.length.toLocaleString()}`);
-  console.log(`   Lines: ${lineCount.toLocaleString()}`);
-  console.log(`   Words (approx): ${wordCount.toLocaleString()}`);
-  console.log(`   Title: "${internalTitle}"\n`);
+  console.log(`   Characters: ${metrics.characters.toLocaleString()}`);
+  console.log(`   Lines: ${metrics.lines.toLocaleString()}`);
+  console.log(`   Words (approx): ${metrics.words.toLocaleString()}`);
+  console.log(`   Title: "${metrics.title}"\n`);
+}
 
-  // Parse markdown with marked
-  let tokens;
-  try {
-    tokens = marked.lexer(md);
-    console.log("✅ Markdown syntax is valid and parseable\n");
-  } catch (error) {
-    console.error("❌ Markdown parsing failed:", error.message);
-    issues.push("Failed to parse markdown - syntax errors present");
-    return { success: false, issues, warnings, tokens: [], detailedErrors };
-  }
-
-  // Analyze token structure
-  console.log("🔍 Content Structure Analysis:");
-
-  const headings = tokens.filter((t) => t.type === "heading");
-  const codeBlocks = tokens.filter((t) => t.type === "code");
-  const images = tokens.filter((t) => t.type === "image");
-  const tables = tokens.filter((t) => t.type === "table");
-  const blockquotes = tokens.filter((t) => t.type === "blockquote");
-  const lists = tokens.filter((t) => t.type === "list");
+/**
+ * Extracts all links from markdown tokens recursively
+ * @param {Array} tokenList - List of tokens to search
+ * @returns {Array} All link tokens found
+ */
+function extractAllLinks(tokenList) {
   const links = [];
-
-  // Extract links from tokens (they're nested in text tokens)
-  const extractLinks = (tokenList) => {
-    tokenList.forEach((token) => {
+  
+  function extractLinks(tokens) {
+    tokens.forEach((token) => {
       if (token.type === "link") {
         links.push(token);
       }
@@ -150,13 +133,40 @@ function validateMarkdown(md, internalTitle) {
         extractLinks(token.tokens);
       }
     });
-  };
-  extractLinks(tokens);
+  }
+  
+  extractLinks(tokenList);
+  return links;
+}
 
-  // Display findings
-  console.log(`   Headings: ${headings.length}`);
-  if (headings.length > 0) {
-    const headingLevels = headings.reduce((acc, h) => {
+/**
+ * Analyzes parsed markdown tokens and extracts structure information
+ * @param {Array} tokens - Parsed markdown tokens from marked.lexer()
+ * @returns {Object} Structure analysis with counts and elements
+ */
+function analyzeMarkdownStructure(tokens) {
+  const headings = tokens.filter((t) => t.type === "heading");
+  const codeBlocks = tokens.filter((t) => t.type === "code");
+  const images = tokens.filter((t) => t.type === "image");
+  const tables = tokens.filter((t) => t.type === "table");
+  const blockquotes = tokens.filter((t) => t.type === "blockquote");
+  const lists = tokens.filter((t) => t.type === "list");
+  const links = extractAllLinks(tokens);
+
+  return { headings, codeBlocks, images, tables, blockquotes, lists, links };
+}
+
+/**
+ * Displays structure analysis results
+ * @param {Object} structure - Analyzed structure
+ */
+function displayStructureAnalysis(structure) {
+  console.log("🔍 Content Structure Analysis:");
+
+  // Display headings
+  console.log(`   Headings: ${structure.headings.length}`);
+  if (structure.headings.length > 0) {
+    const headingLevels = structure.headings.reduce((acc, h) => {
       acc[h.depth] = (acc[h.depth] || 0) + 1;
       return acc;
     }, {});
@@ -165,24 +175,55 @@ function validateMarkdown(md, internalTitle) {
     });
   }
 
-  console.log(`   Code blocks: ${codeBlocks.length}`);
-  if (codeBlocks.length > 0) {
-    const languages = codeBlocks
+  // Display code blocks
+  console.log(`   Code blocks: ${structure.codeBlocks.length}`);
+  if (structure.codeBlocks.length > 0) {
+    const languages = structure.codeBlocks
       .map((cb) => cb.lang || "no-lang")
       .filter((lang, i, arr) => arr.indexOf(lang) === i);
     console.log(`      Languages: ${languages.join(", ")}`);
   }
 
-  console.log(`   Images: ${images.length}`);
-  console.log(`   Tables: ${tables.length}`);
-  console.log(`   Blockquotes: ${blockquotes.length}`);
-  console.log(`   Lists: ${lists.length}`);
-  console.log(`   Links: ${links.length}\n`);
+  console.log(`   Images: ${structure.images.length}`);
+  console.log(`   Tables: ${structure.tables.length}`);
+  console.log(`   Blockquotes: ${structure.blockquotes.length}`);
+  console.log(`   Lists: ${structure.lists.length}`);
+  console.log(`   Links: ${structure.links.length}\n`);
+}
 
-  // Check for potential issues
-  console.log("⚠️  Quality Checks:");
+/**
+ * Adds a detailed error to the tracking array
+ * @param {Array} detailedErrors - Array to add error to
+ * @param {string} type - Error type (Critical/Warning)
+ * @param {string} category - Error category
+ * @param {string} searchPattern - Pattern to search in markdown
+ * @param {string} md - Original markdown content
+ * @param {Object} details - Additional error details
+ */
+function addDetailedError(detailedErrors, type, category, searchPattern, md, details) {
+  const location = findLineNumber(md, searchPattern);
+  
+  detailedErrors.push({
+    type,
+    category,
+    line: location ? location.lineNumber : "Unknown",
+    element: searchPattern,
+    description: details.description,
+    ...details.additionalFields,
+  });
+}
 
-  // Check for H1
+/**
+ * Checks H1 headings for issues
+ * @param {Array} headings - All heading tokens
+ * @param {string} md - Original markdown content
+ * @returns {Object} Issues, warnings, and detailed errors
+ */
+function checkH1Headings(headings, md) {
+  const issues = [];
+  const warnings = [];
+  const detailedErrors = [];
+
   const h1Headings = headings.filter((h) => h.depth === 1);
   const h1Count = h1Headings.length;
 
@@ -199,21 +240,32 @@ function validateMarkdown(md, internalTitle) {
     h1Headings.forEach((h1) => {
       const h1Text = h1.text || "(no text)";
       const searchPattern = `# ${h1Text}`;
-      const location = findLineNumber(md, searchPattern);
-
-      detailedErrors.push({
-        type: "Warning",
-        category: "Multiple H1",
-        line: location ? location.lineNumber : "Unknown",
-        element: `# ${h1Text}`,
+      
+      addDetailedError(detailedErrors, "Warning", "Multiple H1", searchPattern, md, {
         description: "Multiple H1 headings found (SEO concern)",
-        heading: h1Text,
-        count: h1Count,
+        additionalFields: {
+          heading: h1Text,
+          count: h1Count,
+        },
       });
     });
   } else {
     console.log("   ✅ Single H1 heading found");
   }
+
+  return { issues, warnings, detailedErrors };
+}
+
+/**
+ * Checks images for broken links and missing alt text
+ * @param {Array} images - All image tokens
+ * @param {string} md - Original markdown content
+ * @returns {Object} Issues, warnings, and detailed errors
+ */
+function checkImages(images, md) {
+  const issues = [];
+  const warnings = [];
+  const detailedErrors = [];
 
   // Check for broken image links
   const brokenImages = images.filter(
@@ -223,21 +275,16 @@ function validateMarkdown(md, internalTitle) {
     issues.push(`${brokenImages.length} image(s) with missing URLs`);
     console.log(`   ❌ ${brokenImages.length} broken image link(s)`);
 
-    // Track detailed error information with line numbers
     brokenImages.forEach((img) => {
       const altText = img.text || "(no alt text)";
-      // Search for the image syntax in markdown
       const searchPattern = `![${img.text || ""}]()`;
-      const location = findLineNumber(md, searchPattern);
-
-      detailedErrors.push({
-        type: "Critical",
-        category: "Broken Image",
-        line: location ? location.lineNumber : "Unknown",
-        element: `![${altText}]()`,
+      
+      addDetailedError(detailedErrors, "Critical", "Broken Image", searchPattern, md, {
         description: "Image has empty URL",
-        altText: altText,
-        href: "(empty)",
+        additionalFields: {
+          altText: altText,
+          href: "(empty)",
+        },
       });
     });
   } else if (images.length > 0) {
@@ -254,60 +301,22 @@ function validateMarkdown(md, internalTitle) {
       `   ⚠️  ${imagesNoAlt.length} image(s) missing alt text (accessibility concern)`
     );
 
-    // Track detailed warning information
     imagesNoAlt.forEach((img) => {
       const searchPattern = `![](${img.href || ""})`;
-      const location = findLineNumber(md, searchPattern);
-
-      detailedErrors.push({
-        type: "Warning",
-        category: "Missing Alt Text",
-        line: location ? location.lineNumber : "Unknown",
-        element: `![](${img.href || ""})`,
+      
+      addDetailedError(detailedErrors, "Warning", "Missing Alt Text", searchPattern, md, {
         description: "Image is missing alt text (accessibility issue)",
-        altText: "(missing)",
-        href: img.href || "(no URL)",
+        additionalFields: {
+          altText: "(missing)",
+          href: img.href || "(no URL)",
+        },
       });
     });
   } else if (images.length > 0) {
     console.log("   ✅ All images have alt text");
   }
 
-  // Check for broken links
-  const brokenLinks = links.filter(
-    (link) => !link.href || link.href.trim() === ""
-  );
-  if (brokenLinks.length > 0) {
-    issues.push(`${brokenLinks.length} link(s) with missing URLs`);
-    console.log(`   ❌ ${brokenLinks.length} broken link(s)`);
-
-    // Track detailed error information with line numbers
-    brokenLinks.forEach((link) => {
-      const linkText = link.text || "(no text)";
-      // Search for the link syntax in markdown - try both () and ( ) variants
-      let searchPattern = `[${linkText}]()`;
-      let location = findLineNumber(md, searchPattern);
-
-      if (!location) {
-        searchPattern = `[${linkText}]( )`;
-        location = findLineNumber(md, searchPattern);
-      }
-
-      detailedErrors.push({
-        type: "Critical",
-        category: "Broken Link",
-        line: location ? location.lineNumber : "Unknown",
-        element: `[${linkText}]()`,
-        description: "Link has empty URL",
-        linkText: linkText,
-        href: "(empty)",
-      });
-    });
-  } else if (links.length > 0) {
-    console.log("   ✅ All links have URLs");
-  }
-
-  // Check for external images (may cause issues if URLs change)
+  // Check for external images (warning only)
   const externalImages = images.filter(
     (img) =>
       img.href &&
@@ -322,37 +331,203 @@ function validateMarkdown(md, internalTitle) {
     );
   }
 
-  // Check for very long lines (may indicate formatting issues)
-  const longLines = md.split("\n").filter((line) => line.length > 120);
-  if (longLines.length > 10) {
-    warnings.push(`${longLines.length} lines exceed 120 characters`);
+  return { issues, warnings, detailedErrors };
+}
+
+/**
+ * Checks links for broken URLs
+ * @param {Array} links - All link tokens
+ * @param {string} md - Original markdown content
+ * @returns {Object} Issues, warnings, and detailed errors
+ */
+function checkLinks(links, md) {
+  const issues = [];
+  const warnings = [];
+  const detailedErrors = [];
+
+  const brokenLinks = links.filter(
+    (link) => !link.href || link.href.trim() === ""
+  );
+  if (brokenLinks.length > 0) {
+    issues.push(`${brokenLinks.length} link(s) with missing URLs`);
+    console.log(`   ❌ ${brokenLinks.length} broken link(s)`);
+
+    brokenLinks.forEach((link) => {
+      const linkText = link.text || "(no text)";
+      // Search for the link syntax in markdown - try both () and ( ) variants
+      let searchPattern = `[${linkText}]()`;
+      let location = findLineNumber(md, searchPattern);
+
+      if (!location) {
+        searchPattern = `[${linkText}]( )`;
+      }
+
+      addDetailedError(detailedErrors, "Critical", "Broken Link", searchPattern, md, {
+        description: "Link has empty URL",
+        additionalFields: {
+          linkText: linkText,
+          href: "(empty)",
+        },
+      });
+    });
+  } else if (links.length > 0) {
+    console.log("   ✅ All links have URLs");
+  }
+
+  return { issues, warnings, detailedErrors };
+}
+
+/**
+ * Checks for very long lines that may affect readability
+ * @param {string} md - Original markdown content
+ * @returns {Object} Issues and warnings
+ */
+function checkLineLengths(md) {
+  const warnings = [];
+
+  const longLines = md.split("\n").filter((line) => line.length > MAX_LINE_LENGTH);
+  if (longLines.length > LONG_LINE_WARNING_THRESHOLD) {
+    warnings.push(`${longLines.length} lines exceed ${MAX_LINE_LENGTH} characters`);
     console.log(
-      `   ℹ️  ${longLines.length} long lines (>120 chars) - may affect readability`
+      `   ℹ️  ${longLines.length} long lines (>${MAX_LINE_LENGTH} chars) - may affect readability`
     );
   }
 
+  return { warnings };
+}
+
+/**
+ * Performs all quality checks on markdown content
+ * @param {Object} structure - Analyzed markdown structure
+ * @param {string} md - Original markdown content
+ * @returns {Object} Combined issues, warnings, and detailed errors
+ */
+function performQualityChecks(structure, md) {
+  console.log("⚠️  Quality Checks:");
+
+  const h1Results = checkH1Headings(structure.headings, md);
+  const imageResults = checkImages(structure.images, md);
+  const linkResults = checkLinks(structure.links, md);
+  const lineLengthResults = checkLineLengths(md);
+
+  return {
+    issues: [
+      ...h1Results.issues,
+      ...imageResults.issues,
+      ...linkResults.issues,
+    ],
+    warnings: [
+      ...h1Results.warnings,
+      ...imageResults.warnings,
+      ...linkResults.warnings,
+      ...lineLengthResults.warnings,
+    ],
+    detailedErrors: [
+      ...h1Results.detailedErrors,
+      ...imageResults.detailedErrors,
+      ...linkResults.detailedErrors,
+    ],
+  };
+}
+
+/**
+ * Displays quality check results summary
+ * @param {Object} results - Quality check results
+ */
+function displayQualityResults(results) {
   console.log("\n" + "=".repeat(60));
 
-  const success = issues.length === 0;
+  const success = results.issues.length === 0;
   if (success) {
     console.log("✅ VALIDATION PASSED - No critical issues found");
   } else {
     console.log("❌ VALIDATION FAILED - Critical issues found:");
-    issues.forEach((issue) => console.log(`   • ${issue}`));
+    results.issues.forEach((issue) => console.log(`   • ${issue}`));
   }
 
-  if (warnings.length > 0) {
+  if (results.warnings.length > 0) {
     console.log("\n⚠️  WARNINGS (non-critical):");
-    warnings.forEach((warning) => console.log(`   • ${warning}`));
+    results.warnings.forEach((warning) => console.log(`   • ${warning}`));
   }
 
   console.log("=".repeat(60) + "\n");
+}
 
-  return { success, issues, warnings, tokens, detailedErrors };
+/**
+ * Validates markdown structure and returns analysis results
+ * Uses the 'marked' parser to analyze tokens and detect potential issues
+ * Displays detailed validation report with metrics and quality checks
+ * @param {string} md - Markdown content
+ * @param {string} internalTitle - Document title
+ * @returns {Object} Validation result with success status and details
+ */
+function validateMarkdown(md, internalTitle) {
+  displayReportHeader();
+  
+  const metrics = calculateMetrics(md, internalTitle);
+  displayMetrics(metrics);
+
+  // Parse markdown with marked
+  let tokens;
+  try {
+    tokens = marked.lexer(md);
+    console.log("✅ Markdown syntax is valid and parseable\n");
+  } catch (error) {
+    console.error("❌ Markdown parsing failed:", error.message);
+    const issues = ["Failed to parse markdown - syntax errors present"];
+    return { success: false, issues, warnings: [], tokens: [], detailedErrors: [] };
+  }
+
+  // Analyze token structure
+  const structure = analyzeMarkdownStructure(tokens);
+  displayStructureAnalysis(structure);
+
+  // Perform quality checks
+  const qualityResults = performQualityChecks(structure, md);
+
+  // Display results
+  displayQualityResults(qualityResults);
+
+  return {
+    success: qualityResults.issues.length === 0,
+    issues: qualityResults.issues,
+    warnings: qualityResults.warnings,
+    tokens,
+    detailedErrors: qualityResults.detailedErrors,
+  };
+}
+
+/**
+ * Converts validation error details to CSV row data
+ * @param {Object} error - Error object
+ * @returns {Object} CSV row data
+ */
+function errorToCSVRow(error) {
+  let additionalInfo = "";
+
+  if (error.category === "Broken Image") {
+    additionalInfo = `Alt: "${error.altText}"`;
+  } else if (error.category === "Broken Link") {
+    additionalInfo = `Text: "${error.linkText}"`;
+  } else if (error.category === "Missing Alt Text") {
+    additionalInfo = `URL: "${error.href}"`;
+  } else if (error.category === "Multiple H1") {
+    additionalInfo = `Total H1s: ${error.count}`;
+  }
+
+  return {
+    Type: error.type,
+    Category: error.category,
+    Line: error.line,
+    Element: error.element,
+    Description: error.description,
+    "Additional Info": additionalInfo,
+  };
 }
 
 /**
  * Exports validation errors to a CSV file
+ * @param {Array} detailedErrors - Array of detailed error objects
  */
 function exportErrorsToCSV(detailedErrors) {
   if (!detailedErrors || detailedErrors.length === 0) {
@@ -368,7 +543,7 @@ function exportErrorsToCSV(detailedErrors) {
 
   const filename = path.join(outputDir, "validation-errors.csv");
 
-  // CSV header
+  // CSV headers
   const headers = [
     "Type",
     "Category",
@@ -379,42 +554,10 @@ function exportErrorsToCSV(detailedErrors) {
   ];
 
   // Convert errors to CSV rows
-  const rows = detailedErrors.map((error) => {
-    let additionalInfo = "";
+  const rows = detailedErrors.map(errorToCSVRow);
 
-    if (error.category === "Broken Image") {
-      additionalInfo = `Alt: "${error.altText}"`;
-    } else if (error.category === "Broken Link") {
-      additionalInfo = `Text: "${error.linkText}"`;
-    } else if (error.category === "Missing Alt Text") {
-      additionalInfo = `URL: "${error.href}"`;
-    } else if (error.category === "Multiple H1") {
-      additionalInfo = `Total H1s: ${error.count}`;
-    }
-
-    // Escape quotes and wrap in quotes for CSV
-    const escapeCSV = (value) => {
-      if (value === null || value === undefined) return "";
-      const str = String(value);
-      // Escape quotes by doubling them and wrap in quotes if contains comma, quote, or newline
-      if (str.includes('"') || str.includes(",") || str.includes("\n")) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    return [
-      escapeCSV(error.type),
-      escapeCSV(error.category),
-      escapeCSV(error.line),
-      escapeCSV(error.element),
-      escapeCSV(error.description),
-      escapeCSV(additionalInfo),
-    ].join(",");
-  });
-
-  // Combine header and rows
-  const csvContent = [headers.join(","), ...rows].join("\n");
+  // Generate CSV content
+  const csvContent = arrayToCSV(rows, headers);
 
   // Write to file
   fs.writeFileSync(filename, csvContent, "utf8");
@@ -427,9 +570,11 @@ function exportErrorsToCSV(detailedErrors) {
 
 /**
  * Main validation function
+ * @param {string} markdownUrl - URL to fetch markdown from
+ * @param {boolean} shouldExportErrors - Whether to export errors to CSV
  */
 async function runValidation(markdownUrl, shouldExportErrors) {
-  // 1) Fetch markdown from URL
+  // Fetch markdown from URL
   console.log(`\n📥 Fetching markdown from: ${markdownUrl}`);
   const response = await fetch(markdownUrl);
 
@@ -442,21 +587,21 @@ async function runValidation(markdownUrl, shouldExportErrors) {
   const md = await response.text();
   console.log(`✅ Successfully fetched ${md.length} characters`);
 
-  // 2) Derive title from first H1 or fall back
+  // Derive title from first H1 or fall back
   const titleMatch = md.match(/^#\s+(.+?)\s*$/m);
   const internalTitle = titleMatch
     ? titleMatch[1].trim()
     : "Untitled Markdown Import";
 
-  // 3) Run validation
+  // Run validation
   const validationResult = validateMarkdown(md, internalTitle);
 
-  // 4) Export errors to CSV if requested
+  // Export errors to CSV if requested
   if (shouldExportErrors && validationResult.detailedErrors.length > 0) {
     exportErrorsToCSV(validationResult.detailedErrors);
   }
 
-  // 5) Exit with appropriate code
+  // Exit with appropriate code
   if (!validationResult.success) {
     console.error("❌ Validation failed. Fix issues before importing.\n");
     process.exit(1);
@@ -473,7 +618,7 @@ async function main() {
       console.log("\n🔍 Validate Markdown & Generate Import File");
       console.log("─".repeat(60) + "\n");
 
-      MARKDOWN_URL = await question("📎 Enter the markdown URL: ");
+      MARKDOWN_URL = await question(rl, "📎 Enter the markdown URL: ");
 
       if (!MARKDOWN_URL || !MARKDOWN_URL.trim()) {
         console.error("\n❌ Error: URL is required\n");
@@ -488,7 +633,7 @@ async function main() {
     let shouldExportErrors = EXPORT_ERRORS;
     if (!args.includes("--url")) {
       // Only prompt if running interactively
-      shouldExportErrors = await confirm("📄 Export validation errors to CSV?");
+      shouldExportErrors = await confirm(rl, "📄 Export validation errors to CSV?");
 
       console.log("\n" + "─".repeat(60));
       console.log("\n⚙️  Configuration:");
