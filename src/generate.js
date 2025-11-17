@@ -17,6 +17,29 @@ function question(query) {
   });
 }
 
+// Helper function to extract and format filename from URL
+function getFilenameFromUrl(url) {
+  try {
+    // Extract the filename from the URL path
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const filename = pathname.split("/").pop();
+
+    // Remove extension and format as a title
+    const nameWithoutExt = filename.replace(/\.(md|markdown)$/i, "");
+
+    // Convert dashes/underscores to spaces and capitalize words
+    const formattedName = nameWithoutExt
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+      .trim();
+
+    return formattedName || "Untitled Markdown Import";
+  } catch (error) {
+    return "Untitled Markdown Import";
+  }
+}
+
 // Parse command line arguments
 const args = process.argv.slice(2);
 const HELP_MODE = args.includes("--help") || args.includes("-h");
@@ -37,13 +60,21 @@ if (contentTypeIndex !== -1 && args[contentTypeIndex + 1]) {
   CONTENT_TYPE = args[contentTypeIndex + 1];
 }
 
+// Parse title parameter
+const titleIndex = args.indexOf("--title");
+let ENTRY_TITLE = null;
+
+if (titleIndex !== -1 && args[titleIndex + 1]) {
+  ENTRY_TITLE = args[titleIndex + 1];
+}
+
 // Show help if requested
 if (HELP_MODE) {
   console.log(`
 📝 Contentful Markdown Import Generator
 ========================================
 
-Usage: node src/generate.js [--url <markdown-url>] [--content-type <type-id>]
+Usage: node src/generate.js [--url <markdown-url>] [--content-type <type-id>] [--title <entry-title>]
 
 Options:
   --url <url>           URL of the markdown file to import
@@ -54,11 +85,15 @@ Options:
   --content-type <id>   Content type ID to import into (e.g., 'post', 'article')
                         If not provided, will prompt interactively
 
+  --title <title>       Title for the entry
+                        If not provided, will prompt interactively with a default
+                        based on the markdown filename
+
   --help, -h            Show this help message
 
 Examples:
-  # Generate import from GitHub URL with specific content type
-  node src/generate.js --url https://raw.githubusercontent.com/user/repo/main/doc.md --content-type article
+  # Generate import from GitHub URL with specific content type and title
+  node src/generate.js --url https://raw.githubusercontent.com/user/repo/main/doc.md --content-type article --title "My Article"
 
   # Generate import with interactive prompts
   node src/generate.js
@@ -82,7 +117,7 @@ Tip: Use 'npm run validate' to check markdown quality before importing.
 /**
  * Generate import.json from markdown URL
  */
-async function generateImport(markdownUrl, contentType) {
+async function generateImport(markdownUrl, contentType, entryTitle) {
   // 1) Fetch markdown from URL
   console.log(`\n📥 Fetching markdown from: ${markdownUrl}`);
   const response = await fetch(markdownUrl);
@@ -96,11 +131,19 @@ async function generateImport(markdownUrl, contentType) {
   const md = await response.text();
   console.log(`✅ Successfully fetched ${md.length} characters\n`);
 
-  // 2) Derive title from first H1 or fall back
-  const titleMatch = md.match(/^#\s+(.+?)\s*$/m);
-  const internalTitle = titleMatch
-    ? titleMatch[1].trim()
-    : "Untitled Markdown Import";
+  // 2) Use provided title, or derive from first H1, or fall back to filename-based default
+  let internalTitle = entryTitle;
+
+  if (!internalTitle || !internalTitle.trim()) {
+    // Try to extract title from first H1 heading
+    const titleMatch = md.match(/^#\s+(.+?)\s*$/m);
+    if (titleMatch) {
+      internalTitle = titleMatch[1].trim();
+    } else {
+      // Fall back to filename from URL
+      internalTitle = getFilenameFromUrl(markdownUrl);
+    }
+  }
 
   // 3) Build import JSON (entries will be published on import)
   const PUBLISH = true;
@@ -152,8 +195,8 @@ async function generateImport(markdownUrl, contentType) {
 // Main execution
 async function main() {
   try {
-    // If URL or content type not provided via CLI, prompt for them
-    if (!MARKDOWN_URL || !CONTENT_TYPE) {
+    // If URL, content type, or title not provided via CLI, prompt for them
+    if (!MARKDOWN_URL || !CONTENT_TYPE || !ENTRY_TITLE) {
       console.log("\n📦 Generate Contentful Import File");
       console.log("─".repeat(60) + "\n");
 
@@ -179,10 +222,24 @@ async function main() {
         }
       }
 
+      if (!ENTRY_TITLE) {
+        // Generate a default title suggestion from the filename
+        const defaultTitle = getFilenameFromUrl(MARKDOWN_URL);
+        const titlePrompt = `📌 Enter the entry title (default: "${defaultTitle}"): `;
+
+        ENTRY_TITLE = await question(titlePrompt);
+
+        // If user didn't provide a title, use the default
+        if (!ENTRY_TITLE || !ENTRY_TITLE.trim()) {
+          ENTRY_TITLE = defaultTitle;
+          console.log(`   Using default: "${defaultTitle}"`);
+        }
+      }
+
       console.log("\n" + "─".repeat(60));
     }
 
-    await generateImport(MARKDOWN_URL, CONTENT_TYPE);
+    await generateImport(MARKDOWN_URL, CONTENT_TYPE, ENTRY_TITLE);
   } catch (error) {
     console.error("\n❌ Error generating import:", error.message, "\n");
     process.exit(1);
