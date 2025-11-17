@@ -728,21 +728,30 @@ if (!md.includes("## Introduction")) {
 }
 ```
 
-### Toggle Auto-Publish
+### Configuration Options
 
-At the top of `src/generate.js`, change the `PUBLISH` flag in the USER-CONFIGURABLE CONSTANTS section:
+All user-configurable constants are centralized in `src/utils/constants.js` for easy management.
+
+#### Toggle Auto-Publish
+
+In `src/utils/constants.js`, change the `PUBLISH` flag:
 
 ```javascript
-// ============================================================================
-// USER-CONFIGURABLE CONSTANTS
-// ============================================================================
-// Set to true to automatically publish entries on import
+// Set to true to automatically publish entries on import (generate.js & import.js)
 // Set to false to import entries as drafts
 const PUBLISH = false; // Don't publish on import
-// ============================================================================
 ```
 
 This setting is automatically passed to the import process and will control whether entries are published or left as drafts.
+
+#### Other Configurable Settings
+
+In `src/utils/constants.js`, you can also configure:
+
+- **`EXPORT_ERRORS`** - Whether to export validation errors to CSV in the complete workflow
+- **`DEFAULT_LOCALE`** - Default locale for content (e.g., "en-US", "de-DE")
+- **`MAX_LINE_LENGTH`** - Maximum line length before flagging readability issues
+- **`LONG_LINE_WARNING_THRESHOLD`** - Number of long lines before showing a warning
 
 ---
 

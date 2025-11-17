@@ -7,6 +7,7 @@ const path = require("path");
 const { createInterface, question, confirm } = require("./utils/prompts");
 const { parseArgument, hasFlag } = require("./utils/arg-parser");
 const { loadEnvFile } = require("./utils/env-loader");
+const { EXPORT_ERRORS } = require("./utils/constants");
 
 const rl = createInterface();
 
@@ -19,9 +20,6 @@ let CONTENT_TYPE = parseArgument(args, "--content-type");
 let TITLE_FIELD = parseArgument(args, "--title-field");
 let ENTRY_TITLE = parseArgument(args, "--title");
 let BODY_FIELD = parseArgument(args, "--body-field");
-
-// Always export errors and always run validation
-const EXPORT_ERRORS = true;
 
 // Show help if requested
 if (HELP_MODE) {

@@ -3,10 +3,18 @@
 // generate.js - Generate Contentful import file from markdown URL
 const fs = require("fs");
 const path = require("path");
-const { createInterface, question, promptRequired } = require("./utils/prompts");
+const {
+  createInterface,
+  question,
+  promptRequired,
+} = require("./utils/prompts");
 const { getFilenameFromUrl } = require("./utils/url-helpers");
 const { parseArgument, hasFlag } = require("./utils/arg-parser");
-const { INITIAL_PUBLISHED_VERSION, DEFAULT_LOCALE } = require("./utils/constants");
+const {
+  INITIAL_PUBLISHED_VERSION,
+  DEFAULT_LOCALE,
+  PUBLISH,
+} = require("./utils/constants");
 
 const rl = createInterface();
 
@@ -112,7 +120,14 @@ function determineTitle(markdown, url, providedTitle) {
  * @param {boolean} options.publish - Whether to publish on import
  * @returns {Object} Contentful import document
  */
-function buildImportDocument({ contentType, titleField, titleValue, bodyField, markdown, publish }) {
+function buildImportDocument({
+  contentType,
+  titleField,
+  titleValue,
+  bodyField,
+  markdown,
+  publish,
+}) {
   const entrySys = {
     type: "Entry",
     contentType: {
@@ -127,16 +142,23 @@ function buildImportDocument({ contentType, titleField, titleValue, bodyField, m
   };
 
   // The CLI import format mirrors export structure
+  // Add custom metadata to communicate publish setting to import.js
   return {
     contentTypes: [],
     entries: [
       {
-        sys: publish ? { ...entrySys, publishedVersion: INITIAL_PUBLISHED_VERSION } : entrySys,
+        sys: publish
+          ? { ...entrySys, publishedVersion: INITIAL_PUBLISHED_VERSION }
+          : entrySys,
         fields: fields,
       },
     ],
     assets: [],
     locales: [],
+    // Custom metadata for import script to determine whether to publish
+    __metadata: {
+      autoPublish: publish,
+    },
   };
 }
 
@@ -155,7 +177,7 @@ function writeImportFile(importDoc) {
   // Write file
   const outputPath = path.join(outputDir, "import.json");
   fs.writeFileSync(outputPath, JSON.stringify(importDoc, null, 2), "utf8");
-  
+
   return outputPath;
 }
 
@@ -164,7 +186,13 @@ function writeImportFile(importDoc) {
  * @param {Object} options - Generation options
  * @returns {Promise<void>}
  */
-async function generateImport({ markdownUrl, contentType, titleField, entryTitle, bodyField }) {
+async function generateImport({
+  markdownUrl,
+  contentType,
+  titleField,
+  entryTitle,
+  bodyField,
+}) {
   // Fetch markdown from URL
   console.log(`\n📥 Fetching markdown from: ${markdownUrl}`);
   const response = await fetch(markdownUrl);
@@ -181,8 +209,7 @@ async function generateImport({ markdownUrl, contentType, titleField, entryTitle
   // Determine the title to use
   const titleValue = determineTitle(markdown, markdownUrl, entryTitle);
 
-  // Build import JSON (entries will be published on import)
-  const PUBLISH = true;
+  // Build import JSON using the configured PUBLISH setting
   const importDoc = buildImportDocument({
     contentType,
     titleField,

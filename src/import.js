@@ -58,8 +58,8 @@ Or use npx to run it without installing:
 }
 
 /**
- * Validates the import.json file exists
- * @returns {string} Path to the import file
+ * Validates the import.json file exists and reads its metadata
+ * @returns {Object} Object with importFilePath and shouldPublish flag
  * @throws {Error} If file doesn't exist
  */
 function validateImportFile() {
@@ -68,7 +68,18 @@ function validateImportFile() {
     displayImportFileNotFoundError();
     process.exit(1);
   }
-  return importFilePath;
+  
+  // Read import.json to check for autoPublish metadata
+  let shouldPublish = false;
+  try {
+    const importData = JSON.parse(fs.readFileSync(importFilePath, "utf8"));
+    shouldPublish = importData.__metadata?.autoPublish || false;
+  } catch (error) {
+    // If we can't parse metadata, default to false
+    console.log("⚠️  Could not read publish metadata, defaulting to draft mode");
+  }
+  
+  return { importFilePath, shouldPublish };
 }
 
 /**
@@ -137,9 +148,10 @@ function extractEntryId(output) {
  * Runs the Contentful CLI import command
  * @param {string} spaceId - Contentful space ID
  * @param {string} environmentId - Contentful environment ID
+ * @param {boolean} shouldPublish - Whether to publish entries on import
  * @returns {Promise<Object>} Result with success status and output
  */
-function runImportCommand(spaceId, environmentId) {
+function runImportCommand(spaceId, environmentId, shouldPublish) {
   return new Promise((resolve, reject) => {
     const commandArgs = [
       "space",
@@ -151,6 +163,11 @@ function runImportCommand(spaceId, environmentId) {
       "--content-file",
       "outputs/import.json",
     ];
+    
+    // Add publish flag if configured
+    if (shouldPublish) {
+      commandArgs.push("--publish");
+    }
 
     console.log(`🚀 Running command:`);
     console.log(`   contentful ${commandArgs.join(" ")}\n`);
@@ -217,8 +234,8 @@ function displaySuccessMessage(entryId, spaceId, environmentId) {
 async function importToContentful() {
   console.log("📦 Starting Contentful import process...\n");
 
-  // Validate import file exists
-  const importFilePath = validateImportFile();
+  // Validate import file exists and read metadata
+  const { importFilePath, shouldPublish } = validateImportFile();
 
   // Load and validate environment variables
   const { spaceId, environmentId } = loadAndValidateEnv();
@@ -226,14 +243,15 @@ async function importToContentful() {
   console.log(`🔧 Configuration:`);
   console.log(`   Space ID: ${spaceId}`);
   console.log(`   Environment: ${environmentId}`);
-  console.log(`   Import File: outputs/import.json\n`);
+  console.log(`   Import File: outputs/import.json`);
+  console.log(`   Auto-Publish: ${shouldPublish ? "✅ Enabled" : "❌ Disabled (entries will be drafts)"}\n`);
 
   // Check if contentful-cli is installed
   checkCLIInstalled(spaceId, environmentId);
 
   try {
     // Run the import command
-    const result = await runImportCommand(spaceId, environmentId);
+    const result = await runImportCommand(spaceId, environmentId, shouldPublish);
 
     if (!result.success) {
       console.error("\n" + "─".repeat(60));
